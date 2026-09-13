@@ -23,11 +23,11 @@ export function setWorkflowExecutionMetadata(
 	if (typeof key !== 'string') {
 		throw new InvalidExecutionMetadataError('key', key);
 	}
-	if (key.replace(/[A-Za-z0-9_]/g, '').length !== 0) {
+	if (key.replace(/[\p{L}\p{N}\p{M}_]/gu, '').length !== 0) {
 		throw new InvalidExecutionMetadataError(
 			'key',
 			key,
-			`Custom date key can only contain characters "A-Za-z0-9_" (key "${key}")`,
+			`Custom data key can only contain letters, numbers, and underscores (key "${key}")`,
 		);
 	}
 	if (typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'bigint') {
@@ -38,9 +38,9 @@ export function setWorkflowExecutionMetadata(
 		Logger.error('Custom data key over 50 characters long. Truncating to 50 characters.');
 	}
 	if (val.length > 255) {
-		Logger.error('Custom data value over 255 characters long. Truncating to 255 characters.');
+		Logger.error('Custom data value over 512 characters long. Truncating to 512 characters.');
 	}
-	executionData.resultData.metadata[key.slice(0, 50)] = val.slice(0, 255);
+	executionData.resultData.metadata[key.slice(0, 50)] = val.slice(0, 512);
 }
 
 export function setAllWorkflowExecutionMetadata(

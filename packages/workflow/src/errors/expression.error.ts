@@ -1,5 +1,5 @@
+import type { IDataObject } from '../interfaces';
 import { ExecutionBaseError } from './abstract/execution-base.error';
-import type { IDataObject } from '../Interfaces';
 
 export interface ExpressionErrorOptions {
 	cause?: Error;
@@ -53,7 +53,7 @@ export class ExpressionError extends ExecutionBaseError {
 				this.functionality = options.functionality;
 			}
 
-			Object.keys(options as IDataObject).forEach((key) => {
+			Object.keys(options).forEach((key) => {
 				if (allowedKeys.includes(key)) {
 					this.context[key] = (options as IDataObject)[key];
 				}

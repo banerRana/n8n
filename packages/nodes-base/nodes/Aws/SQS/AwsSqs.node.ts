@@ -10,10 +10,11 @@ import type {
 	INodeTypeDescription,
 	JsonObject,
 } from 'n8n-workflow';
-import { NodeApiError, NodeConnectionType } from 'n8n-workflow';
+import { NodeApiError, NodeConnectionTypes } from 'n8n-workflow';
 import { URL } from 'url';
 
 import { awsApiRequestSOAP } from '../GenericFunctions';
+import { awsNodeAuthOptions, awsNodeCredentials } from '../utils';
 
 export class AwsSqs implements INodeType {
 	description: INodeTypeDescription = {
@@ -27,15 +28,11 @@ export class AwsSqs implements INodeType {
 		defaults: {
 			name: 'AWS SQS',
 		},
-		inputs: [NodeConnectionType.Main],
-		outputs: [NodeConnectionType.Main],
-		credentials: [
-			{
-				name: 'aws',
-				required: true,
-			},
-		],
+		inputs: [NodeConnectionTypes.Main],
+		outputs: [NodeConnectionTypes.Main],
+		credentials: awsNodeCredentials,
 		properties: [
+			awsNodeAuthOptions,
 			{
 				displayName: 'Operation',
 				name: 'operation',
@@ -319,12 +316,12 @@ export class AwsSqs implements INodeType {
 						'',
 					) as string;
 					if (messageDeduplicationId) {
-						params.push(`MessageDeduplicationId=${messageDeduplicationId}`);
+						params.push(`MessageDeduplicationId=${encodeURIComponent(messageDeduplicationId)}`);
 					}
 
 					const messageGroupId = this.getNodeParameter('messageGroupId', i) as string;
 					if (messageGroupId) {
-						params.push(`MessageGroupId=${messageGroupId}`);
+						params.push(`MessageGroupId=${encodeURIComponent(messageGroupId)}`);
 					}
 				}
 
@@ -334,8 +331,12 @@ export class AwsSqs implements INodeType {
 					this.getNodeParameter('options.messageAttributes.string', i, []) as INodeParameters[]
 				).forEach((attribute) => {
 					attributeCount++;
-					params.push(`MessageAttribute.${attributeCount}.Name=${attribute.name}`);
-					params.push(`MessageAttribute.${attributeCount}.Value.StringValue=${attribute.value}`);
+					params.push(
+						`MessageAttribute.${attributeCount}.Name=${encodeURIComponent(attribute.name as string)}`,
+					);
+					params.push(
+						`MessageAttribute.${attributeCount}.Value.StringValue=${encodeURIComponent(attribute.value as string)}`,
+					);
 					params.push(`MessageAttribute.${attributeCount}.Value.DataType=String`);
 				});
 
@@ -348,8 +349,12 @@ export class AwsSqs implements INodeType {
 					const dataPropertyName = attribute.dataPropertyName as string;
 					const binaryData = this.helpers.assertBinaryData(i, dataPropertyName);
 
-					params.push(`MessageAttribute.${attributeCount}.Name=${attribute.name}`);
-					params.push(`MessageAttribute.${attributeCount}.Value.BinaryValue=${binaryData.data}`);
+					params.push(
+						`MessageAttribute.${attributeCount}.Name=${encodeURIComponent(attribute.name as string)}`,
+					);
+					params.push(
+						`MessageAttribute.${attributeCount}.Value.BinaryValue=${encodeURIComponent(binaryData.data)}`,
+					);
 					params.push(`MessageAttribute.${attributeCount}.Value.DataType=Binary`);
 				});
 
@@ -358,8 +363,12 @@ export class AwsSqs implements INodeType {
 					this.getNodeParameter('options.messageAttributes.number', i, []) as INodeParameters[]
 				).forEach((attribute) => {
 					attributeCount++;
-					params.push(`MessageAttribute.${attributeCount}.Name=${attribute.name}`);
-					params.push(`MessageAttribute.${attributeCount}.Value.StringValue=${attribute.value}`);
+					params.push(
+						`MessageAttribute.${attributeCount}.Name=${encodeURIComponent(attribute.name as string)}`,
+					);
+					params.push(
+						`MessageAttribute.${attributeCount}.Value.StringValue=${encodeURIComponent(attribute.value as number)}`,
+					);
 					params.push(`MessageAttribute.${attributeCount}.Value.DataType=Number`);
 				});
 

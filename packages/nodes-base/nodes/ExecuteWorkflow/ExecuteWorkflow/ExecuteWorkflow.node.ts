@@ -1,4 +1,4 @@
-import { NodeConnectionType, NodeOperationError } from 'n8n-workflow';
+import { NodeConnectionTypes, NodeOperationError, parseErrorMetadata } from 'n8n-workflow';
 import type {
 	ExecuteWorkflowData,
 	IExecuteFunctions,
@@ -7,28 +7,72 @@ import type {
 	INodeTypeDescription,
 } from 'n8n-workflow';
 
+import { findPairedItemThroughWorkflowData } from './../../../utils/workflow-backtracking';
 import { getWorkflowInfo } from './GenericFunctions';
+import { localResourceMapping } from './methods';
 import { generatePairedItemData } from '../../../utils/utilities';
-import {
-	getCurrentWorkflowInputData,
-	loadWorkflowInputMappings,
-} from '../../../utils/workflowInputsResourceMapping/GenericFunctions';
+import { getCurrentWorkflowInputData } from '../../../utils/workflowInputsResourceMapping/GenericFunctions';
+
 export class ExecuteWorkflow implements INodeType {
 	description: INodeTypeDescription = {
-		displayName: 'Execute Workflow',
+		displayName: 'Execute Sub-workflow',
 		name: 'executeWorkflow',
-		icon: 'fa:sign-in-alt',
+		icon: 'node:execute-sub-workflow',
 		iconColor: 'orange-red',
 		group: ['transform'],
-		version: [1, 1.1, 1.2],
+		version: [1, 1.1, 1.2, 1.3],
 		subtitle: '={{"Workflow: " + $parameter["workflowId"]}}',
 		description: 'Execute another workflow',
 		defaults: {
 			name: 'Execute Workflow',
-			color: '#ff6d5a',
 		},
-		inputs: [NodeConnectionType.Main],
-		outputs: [NodeConnectionType.Main],
+		inputs: [NodeConnectionTypes.Main],
+		outputs: [NodeConnectionTypes.Main],
+		builderHint: {
+			extraTypeDefContent: [
+				{
+					displayOptions: { show: { mode: ['once', 'each'] } },
+					content: `<patterns>
+These workflowInputs patterns apply to Execute Workflow node versions 1.2 and newer.
+<pattern title="Child accepts all data">
+Omit workflowInputs from parameters.
+</pattern>
+<pattern title="Child declares inputs">
+workflowInputs: {
+  mappingMode: 'defineBelow',
+  value: {
+    orderId: expr('{{ $json.id }}'),
+    amount: expr('{{ $json.total }}'),
+  },
+  matchingColumns: [],
+  schema: [
+    {
+      id: 'orderId',
+      displayName: 'orderId',
+      required: false,
+      defaultMatch: false,
+      display: true,
+      canBeUsedToMatch: true,
+      type: 'string',
+    },
+    {
+      id: 'amount',
+      displayName: 'amount',
+      required: false,
+      defaultMatch: false,
+      display: true,
+      canBeUsedToMatch: true,
+      type: 'number',
+    },
+  ],
+  attemptToConvertTypes: false,
+  convertFieldsToString: true,
+}
+</pattern>
+</patterns>`,
+				},
+			],
+		},
 		properties: [
 			{
 				displayName: 'Operation',
@@ -38,7 +82,7 @@ export class ExecuteWorkflow implements INodeType {
 				default: 'call_workflow',
 				options: [
 					{
-						name: 'Call Another Workflow',
+						name: 'Execute a Sub-Workflow',
 						value: 'call_workflow',
 					},
 				],
@@ -79,6 +123,19 @@ export class ExecuteWorkflow implements INodeType {
 				default: 'database',
 				description: 'Where to get the workflow to execute from',
 				displayOptions: { show: { '@version': [{ _cnd: { lte: 1.1 } }] } },
+			},
+			{
+				displayName:
+					'The "Local File" and "URL" sources are deprecated and will be removed in a future version. Import the workflow into this n8n instance and use the "Database" source, or paste its JSON into the "Parameter" source instead.',
+				name: 'sourceDeprecationNotice',
+				type: 'notice',
+				default: '',
+				displayOptions: {
+					show: {
+						source: ['localFile', 'url'],
+						'@version': [{ _cnd: { lte: 1.1 } }],
+					},
+				},
 			},
 			{
 				displayName: 'Source',
@@ -132,7 +189,6 @@ export class ExecuteWorkflow implements INodeType {
 				},
 				default: '',
 				required: true,
-				hint: "Note on using an expression here: if this node is set to run once with all items, they will all be sent to the <em>same</em> workflow. That workflow's ID will be calculated by evaluating the expression for the <strong>first input item</strong>.",
 			},
 			// ----------------------------------
 			//         source:localFile
@@ -207,10 +263,14 @@ export class ExecuteWorkflow implements INodeType {
 					value: null,
 				},
 				required: true,
+				builderHint: {
+					propertyHint:
+						"The default { mappingMode: 'defineBelow', value: null } is only a temporary UI initialization state and must never be emitted in a workflow. Omit workflowInputs when the selected sub-workflow's trigger is set to 'Accept all data'. When the trigger declares inputs, pass the full Resource Mapper object and make the value and schema fields exactly match the declared input names and types.",
+				},
 				typeOptions: {
 					loadOptionsDependsOn: ['workflowId.value'],
 					resourceMapper: {
-						localResourceMapperMethod: 'loadWorkflowInputMappings',
+						localResourceMapperMethod: 'loadSubWorkflowInputs',
 						valuesLabel: 'Workflow Inputs',
 						mode: 'map',
 						fieldWords: {
@@ -221,6 +281,7 @@ export class ExecuteWorkflow implements INodeType {
 						multiKeyMatch: false,
 						supportAutoMap: false,
 						showTypeConversionOptions: true,
+						refreshStaleSchemaOnOpen: true,
 					},
 				},
 				displayOptions: {
@@ -255,6 +316,18 @@ export class ExecuteWorkflow implements INodeType {
 				default: 'once',
 			},
 			{
+				displayName:
+					'"Run once for each item" is deprecated and will be removed in a future version. To run the sub-workflow once per item, add a "Loop Over Items" node before this node and use "Run once with all items".',
+				name: 'eachModeDeprecationNotice',
+				type: 'notice',
+				default: '',
+				displayOptions: {
+					show: {
+						mode: ['each'],
+					},
+				},
+			},
+			{
 				displayName: 'Options',
 				name: 'options',
 				type: 'collection',
@@ -272,12 +345,21 @@ export class ExecuteWorkflow implements INodeType {
 				],
 			},
 		],
+		hints: [
+			{
+				type: 'info',
+				message:
+					"Note on using an expression for workflow ID: Since this node is set to run once with all items, they will all be sent to the <em>same</em> workflow. That workflow's ID will be calculated by evaluating the expression for the <strong>first input item</strong>.",
+				displayCondition:
+					'={{ $rawParameter.workflowId.startsWith("=") && $parameter.mode === "once" && $nodeVersion >= 1.2 }}',
+				whenToDisplay: 'always',
+				location: 'outputPane',
+			},
+		],
 	};
 
 	methods = {
-		localResourceMapping: {
-			loadWorkflowInputMappings,
-		},
+		localResourceMapping,
 	};
 
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
@@ -309,7 +391,9 @@ export class ExecuteWorkflow implements INodeType {
 								parentExecution: {
 									executionId: workflowProxy.$execution.id,
 									workflowId: workflowProxy.$workflow.id,
+									shouldResume: waitForSubWorkflow,
 								},
+								executionMode: this.getMode(),
 							},
 						);
 						const workflowResult = executionResult.data as INodeExecutionData[][];
@@ -341,7 +425,9 @@ export class ExecuteWorkflow implements INodeType {
 								parentExecution: {
 									executionId: workflowProxy.$execution.id,
 									workflowId: workflowProxy.$workflow.id,
+									shouldResume: waitForSubWorkflow,
 								},
+								executionMode: this.getMode(),
 							},
 						);
 
@@ -361,10 +447,20 @@ export class ExecuteWorkflow implements INodeType {
 					}
 				} catch (error) {
 					if (this.continueOnFail()) {
-						if (returnData[i] === undefined) {
-							returnData[i] = [];
-						}
-						returnData[i].push({ json: { error: error.message }, pairedItem: { item: i } });
+						const nodeVersion = this.getNode().typeVersion;
+						// In versions < 1.3 using the "Continue (using error output)" mode
+						// the node would return items in extra "error branches" instead of
+						// returning an array of items on the error output. These branches weren't really shown correctly on the UI.
+						// In the fixed >= 1.3 versions the errors are now all output into the single error output as an array of error items.
+						const outputIndex = nodeVersion >= 1.3 ? 0 : i;
+
+						returnData[outputIndex] ??= [];
+						const metadata = parseErrorMetadata(error);
+						returnData[outputIndex].push({
+							json: { error: error.message },
+							pairedItem: { item: i },
+							metadata,
+						});
 						continue;
 					}
 					throw new NodeOperationError(this.getNode(), error, {
@@ -398,7 +494,9 @@ export class ExecuteWorkflow implements INodeType {
 						parentExecution: {
 							executionId: workflowProxy.$execution.id,
 							workflowId: workflowProxy.$workflow.id,
+							shouldResume: waitForSubWorkflow,
 						},
+						executionMode: this.getMode(),
 					},
 				);
 
@@ -414,6 +512,8 @@ export class ExecuteWorkflow implements INodeType {
 					return [items];
 				}
 
+				const workflowRunData = await this.getExecutionDataById(executionResult.executionId);
+
 				const workflowResult = executionResult.data as INodeExecutionData[][];
 
 				const fallbackPairedItemData = generatePairedItemData(items.length);
@@ -422,7 +522,20 @@ export class ExecuteWorkflow implements INodeType {
 					const sameLength = output.length === items.length;
 
 					for (const [itemIndex, item] of output.entries()) {
-						if (item.pairedItem) continue;
+						if (item.pairedItem) {
+							// If the item already has a paired item, we need to follow these to the start of the child workflow
+							if (workflowRunData !== undefined) {
+								const pairedItem = findPairedItemThroughWorkflowData(
+									workflowRunData,
+									item,
+									itemIndex,
+								);
+								if (pairedItem !== undefined) {
+									item.pairedItem = pairedItem;
+								}
+							}
+							continue;
+						}
 
 						if (sameLength) {
 							item.pairedItem = { item: itemIndex };
@@ -436,7 +549,16 @@ export class ExecuteWorkflow implements INodeType {
 			} catch (error) {
 				const pairedItem = generatePairedItemData(items.length);
 				if (this.continueOnFail()) {
-					return [[{ json: { error: error.message }, pairedItem }]];
+					const metadata = parseErrorMetadata(error);
+					return [
+						[
+							{
+								json: { error: error.message },
+								metadata,
+								pairedItem,
+							},
+						],
+					];
 				}
 				throw error;
 			}

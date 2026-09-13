@@ -1,15 +1,13 @@
-/* eslint-disable n8n-nodes-base/node-dirname-against-convention */
-import { OpenAIEmbeddings } from '@langchain/openai';
+import { AzureOpenAIEmbeddings, OpenAIEmbeddings } from '@langchain/openai';
+import { getProxyAgent, logWrapper, getConnectionHintNoticeField } from '@n8n/ai-utilities';
 import {
-	NodeConnectionType,
+	NodeConnectionTypes,
+	NodeOperationError,
 	type INodeType,
 	type INodeTypeDescription,
 	type ISupplyDataFunctions,
 	type SupplyData,
 } from 'n8n-workflow';
-
-import { logWrapper } from '@utils/logWrapper';
-import { getConnectionHintNoticeField } from '@utils/sharedFields';
 
 export class EmbeddingsAzureOpenAi implements INodeType {
 	description: INodeTypeDescription = {
@@ -42,13 +40,13 @@ export class EmbeddingsAzureOpenAi implements INodeType {
 				],
 			},
 		},
-		// eslint-disable-next-line n8n-nodes-base/node-class-description-inputs-wrong-regular-node
+
 		inputs: [],
-		// eslint-disable-next-line n8n-nodes-base/node-class-description-outputs-wrong
-		outputs: [NodeConnectionType.AiEmbedding],
+
+		outputs: [NodeConnectionTypes.AiEmbedding],
 		outputNames: ['Embeddings'],
 		properties: [
-			getConnectionHintNoticeField([NodeConnectionType.AiVectorStore]),
+			getConnectionHintNoticeField([NodeConnectionTypes.AiVectorStore]),
 			{
 				displayName: 'Model (Deployment) Name',
 				name: 'model',
@@ -90,7 +88,7 @@ export class EmbeddingsAzureOpenAi implements INodeType {
 					{
 						displayName: 'Dimensions',
 						name: 'dimensions',
-						default: undefined,
+						default: 1536,
 						description:
 							'The number of dimensions the resulting output embeddings should have. Only supported in text-embedding-3 and later models.',
 						type: 'options',
@@ -126,9 +124,11 @@ export class EmbeddingsAzureOpenAi implements INodeType {
 		this.logger.debug('Supply data for embeddings');
 		const credentials = await this.getCredentials<{
 			apiKey: string;
-			resourceName: string;
-			apiVersion: string;
+			resourceName?: string;
+			apiVersion?: string;
 			endpoint?: string;
+			endpointType?: 'classic' | 'foundry';
+			foundryEndpoint?: string;
 		}>('azureOpenAiApi');
 		const modelName = this.getNodeParameter('model', itemIndex) as string;
 
@@ -143,7 +143,32 @@ export class EmbeddingsAzureOpenAi implements INodeType {
 			options.timeout = undefined;
 		}
 
-		const embeddings = new OpenAIEmbeddings({
+		if (credentials.endpointType === 'foundry') {
+			const foundryURL = credentials.foundryEndpoint?.trim();
+			if (!foundryURL) {
+				throw new NodeOperationError(
+					this.getNode(),
+					'Foundry endpoint is missing in the selected Azure OpenAI API credential.',
+				);
+			}
+			const embeddings = new OpenAIEmbeddings({
+				apiKey: credentials.apiKey,
+				model: modelName,
+				configuration: {
+					baseURL: foundryURL,
+					fetchOptions: {
+						dispatcher: getProxyAgent(foundryURL, {}),
+					},
+				},
+				...options,
+			});
+
+			return {
+				response: logWrapper(embeddings, this),
+			};
+		}
+
+		const embeddings = new AzureOpenAIEmbeddings({
 			azureOpenAIApiDeploymentName: modelName,
 			// instance name only needed to set base url
 			azureOpenAIApiInstanceName: !credentials.endpoint ? credentials.resourceName : undefined,
@@ -154,6 +179,14 @@ export class EmbeddingsAzureOpenAi implements INodeType {
 			azureOpenAIBasePath: credentials.endpoint
 				? `${credentials.endpoint}/openai/deployments`
 				: undefined,
+			configuration: {
+				fetchOptions: {
+					dispatcher: getProxyAgent(
+						credentials.endpoint ?? `https://${credentials.resourceName}.openai.azure.com`,
+						{},
+					),
+				},
+			},
 			...options,
 		});
 

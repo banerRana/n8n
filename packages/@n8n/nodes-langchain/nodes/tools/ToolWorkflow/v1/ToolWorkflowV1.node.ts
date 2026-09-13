@@ -1,6 +1,5 @@
 import type { CallbackManagerForToolRun } from '@langchain/core/callbacks/manager';
 import { DynamicStructuredTool, DynamicTool } from '@langchain/core/tools';
-import type { JSONSchema7 } from 'json-schema';
 import get from 'lodash/get';
 import isObject from 'lodash/isObject';
 import type { SetField, SetNodeOptions } from 'n8n-nodes-base/dist/nodes/Set/v2/helpers/interfaces';
@@ -20,11 +19,18 @@ import type {
 	ITaskMetadata,
 	INodeTypeBaseDescription,
 } from 'n8n-workflow';
-import { NodeConnectionType, NodeOperationError, jsonParse } from 'n8n-workflow';
+import { NodeConnectionTypes, NodeOperationError, jsonParse } from 'n8n-workflow';
+
+import { logAiEvent } from '@n8n/ai-utilities';
 
 import { versionDescription } from './versionDescription';
 import type { DynamicZodObject } from '../../../../types/zod.types';
-import { convertJsonSchemaToZod, generateSchema } from '../../../../utils/schemaParsing';
+import {
+	convertJsonSchemaToZod,
+	generateSchemaFromExample,
+	parseJsonSchemaParameter,
+} from '../../../../utils/schemaParsing';
+import { SUB_WORKFLOW_WAITING_PLACEHOLDER } from '../constants';
 
 export class ToolWorkflowV1 implements INodeType {
 	description: INodeTypeDescription;
@@ -122,13 +128,21 @@ export class ToolWorkflowV1 implements INodeType {
 					parentExecution: {
 						executionId: workflowProxy.$execution.id,
 						workflowId: workflowProxy.$workflow.id,
+						shouldResume: true,
 					},
+					returnLastRunOnly: true, // The tool's answer is the sub-workflow's final-run output, not its internal multi-run computation.
 				});
 				subExecutionId = receivedData.executionId;
 			} catch (error) {
 				// Make sure a valid error gets returned that can by json-serialized else it will
 				// not show up in the frontend
 				throw new NodeOperationError(this.getNode(), error as Error);
+			}
+			if (receivedData.waitTill) {
+				// A parked child has no final output yet; its `data` is the HITL node's passthrough
+				// input. The parent is already parked via BaseExecuteContext.executeWorkflow and
+				// gets the real output on resume.
+				return JSON.stringify(SUB_WORKFLOW_WAITING_PLACEHOLDER);
 			}
 
 			const response: string | undefined = get(receivedData, 'data[0][0].json') as
@@ -148,7 +162,7 @@ export class ToolWorkflowV1 implements INodeType {
 			query: string | IDataObject,
 			runManager?: CallbackManagerForToolRun,
 		): Promise<string> => {
-			const { index } = this.addInputData(NodeConnectionType.AiTool, [[{ json: { query } }]]);
+			const { index } = this.addInputData(NodeConnectionTypes.AiTool, [[{ json: { query } }]]);
 
 			let response: string = '';
 			let executionError: ExecutionError | undefined;
@@ -189,13 +203,14 @@ export class ToolWorkflowV1 implements INodeType {
 			}
 
 			if (executionError) {
-				void this.addOutputData(NodeConnectionType.AiTool, index, executionError, metadata);
+				void this.addOutputData(NodeConnectionTypes.AiTool, index, executionError, metadata);
 			} else {
 				// Output always needs to be an object
 				// so we try to parse the response as JSON and if it fails we just return the string wrapped in an object
 				const json = jsonParse<IDataObject>(response, { fallbackValue: { response } });
-				void this.addOutputData(NodeConnectionType.AiTool, index, [[{ json }]], metadata);
+				void this.addOutputData(NodeConnectionTypes.AiTool, index, [[{ json }]], metadata);
 			}
+			logAiEvent(this, 'ai-tool-called', { query, response });
 			return response;
 		};
 
@@ -209,14 +224,14 @@ export class ToolWorkflowV1 implements INodeType {
 			try {
 				// We initialize these even though one of them will always be empty
 				// it makes it easier to navigate the ternary operator
-				const jsonExample = this.getNodeParameter('jsonSchemaExample', itemIndex, '') as string;
-				const inputSchema = this.getNodeParameter('inputSchema', itemIndex, '') as string;
+				const jsonExample = this.getNodeParameter('jsonSchemaExample', itemIndex, '') as unknown;
+				const inputSchema = this.getNodeParameter('inputSchema', itemIndex, '') as unknown;
 
 				const schemaType = this.getNodeParameter('schemaType', itemIndex) as 'fromJson' | 'manual';
 				const jsonSchema =
 					schemaType === 'fromJson'
-						? generateSchema(jsonExample)
-						: jsonParse<JSONSchema7>(inputSchema);
+						? generateSchemaFromExample(jsonExample)
+						: parseJsonSchemaParameter(inputSchema);
 
 				const zodSchema = convertJsonSchemaToZod<DynamicZodObject>(jsonSchema);
 

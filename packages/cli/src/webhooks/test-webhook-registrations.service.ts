@@ -1,17 +1,46 @@
+import { isObjectLiteral } from '@n8n/backend-common';
 import { Service } from '@n8n/di';
 import { InstanceSettings } from 'n8n-core';
-import type { IWebhookData } from 'n8n-workflow';
+import {
+	type IWebhookData,
+	type IWorkflowBase,
+	type IDestinationNode,
+	UserError,
+} from 'n8n-workflow';
 
 import { TEST_WEBHOOK_TIMEOUT, TEST_WEBHOOK_TIMEOUT_BUFFER } from '@/constants';
-import type { IWorkflowDb } from '@/interfaces';
 import { CacheService } from '@/services/cache/cache.service';
 
+const TEST_WEBHOOK_REGISTRATION_VERSION = 1;
+
 export type TestWebhookRegistration = {
+	// A simple versioning to be safe. If you make a breaking change in the type, bump the version.
+	// Any old records in the cache will just be ignored.
+	version: typeof TEST_WEBHOOK_REGISTRATION_VERSION;
 	pushRef?: string;
-	workflowEntity: IWorkflowDb;
-	destinationNode?: string;
+	workflowEntity: IWorkflowBase;
+	destinationNode?: IDestinationNode;
 	webhook: IWebhookData;
+	/**
+	 * Encrypted credential context carrying the identity of the builder who started
+	 * this test run. A manual run normally picks this up from the auth cookie when its
+	 * execution data is built, but a run that waits for a webhook returns before that,
+	 * so the identity has to travel on the registration instead.
+	 */
+	encryptedRunnerIdentity?: string;
 };
+
+// Type guard for TestWebhookRegistration.
+// NOTE: we could have a more robust validation, but this is probably good enough for now.
+function isTestWebhookRegistration(obj: unknown): obj is TestWebhookRegistration {
+	if (!isObjectLiteral(obj)) {
+		return false;
+	}
+
+	if (!('version' in obj)) return false;
+
+	return obj.version === TEST_WEBHOOK_REGISTRATION_VERSION;
+}
 
 @Service()
 export class TestWebhookRegistrationsService {
@@ -26,6 +55,14 @@ export class TestWebhookRegistrationsService {
 		const hashKey = this.toKey(registration.webhook);
 
 		await this.cacheService.setHash(this.cacheKey, { [hashKey]: registration });
+
+		const isCached = await this.cacheService.exists(this.cacheKey);
+
+		if (!isCached) {
+			throw new UserError(
+				'Test webhook registration failed: workflow is too big. Remove pinned data',
+			);
+		}
 
 		if (this.instanceSettings.isSingleMain) return;
 
@@ -52,8 +89,9 @@ export class TestWebhookRegistrationsService {
 		}
 	}
 
-	async get(key: string) {
-		return await this.cacheService.getHashValue<TestWebhookRegistration>(this.cacheKey, key);
+	async get(key: string): Promise<TestWebhookRegistration | undefined> {
+		const val = await this.cacheService.getHashValue(this.cacheKey, key);
+		return isTestWebhookRegistration(val) ? val : undefined;
 	}
 
 	async getAllKeys() {
@@ -69,11 +107,17 @@ export class TestWebhookRegistrationsService {
 
 		if (!hash) return [];
 
-		return Object.values(hash);
+		return Object.values(hash).filter(isTestWebhookRegistration);
 	}
 
-	async deregisterAll() {
-		await this.cacheService.delete(this.cacheKey);
+	async getRegistrationsHash() {
+		const val = await this.cacheService.getHash<TestWebhookRegistration>(this.cacheKey);
+		for (const key in val) {
+			if (!isTestWebhookRegistration(val[key])) {
+				delete val[key];
+			}
+		}
+		return val;
 	}
 
 	toKey(webhook: Pick<IWebhookData, 'webhookId' | 'httpMethod' | 'path'>) {

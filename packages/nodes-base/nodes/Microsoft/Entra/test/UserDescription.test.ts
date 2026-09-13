@@ -1,21 +1,23 @@
-import { NodeConnectionType } from 'n8n-workflow';
-import nock from 'nock';
+import { NodeTestHarness } from '@nodes-testing/node-test-harness';
+import {
+	NodeConnectionTypes,
+	NodeHelpers,
+	type INodeParameters,
+	type WorkflowTestData,
+} from 'n8n-workflow';
+import {
+	entraGroupGuid as groupGuid,
+	entraGuid as guid,
+	entraWorkflow,
+	expectNoGraphRequests,
+	microsoftEntraApiResponse,
+	microsoftEntraNodeResponse,
+} from './mocks';
+import { MicrosoftEntra } from '../MicrosoftEntra.node';
 
-import { executeWorkflow } from '@test/nodes/ExecuteWorkflow';
-import * as Helpers from '@test/nodes/Helpers';
-import type { WorkflowTestData } from '@test/nodes/types';
-
-import { microsoftEntraApiResponse, microsoftEntraNodeResponse } from './mocks';
-
-describe('Gong Node', () => {
+describe('Microsoft Entra Node', () => {
+	const testHarness = new NodeTestHarness();
 	const baseUrl = 'https://graph.microsoft.com/v1.0';
-
-	beforeEach(() => {
-		// https://github.com/nock/nock/issues/2057#issuecomment-663665683
-		if (!nock.isActive()) {
-			nock.activate();
-		}
-	});
 
 	describe('User description', () => {
 		const tests: WorkflowTestData[] = [
@@ -27,7 +29,7 @@ describe('Gong Node', () => {
 							{
 								parameters: {},
 								id: '416e4fc1-5055-4e61-854e-a6265256ac26',
-								name: "When clicking 'Test workflow'",
+								name: 'When clicking ‘Execute workflow’',
 								type: 'n8n-nodes-base.manualTrigger',
 								position: [820, 380],
 								typeVersion: 1,
@@ -52,7 +54,7 @@ describe('Gong Node', () => {
 								typeVersion: 1,
 								position: [220, 0],
 								id: '3429f7f2-dfca-4b72-8913-43a582e96e66',
-								name: 'Micosoft Entra ID',
+								name: 'Microsoft Entra ID',
 								credentials: {
 									microsoftEntraOAuth2Api: {
 										id: 'Hot2KwSMSoSmMVqd',
@@ -62,12 +64,12 @@ describe('Gong Node', () => {
 							},
 						],
 						connections: {
-							"When clicking 'Test workflow'": {
+							'When clicking ‘Execute workflow’': {
 								main: [
 									[
 										{
-											node: 'Micosoft Entra ID',
-											type: NodeConnectionType.Main,
+											node: 'Microsoft Entra ID',
+											type: NodeConnectionTypes.Main,
 											index: 0,
 										},
 									],
@@ -77,9 +79,8 @@ describe('Gong Node', () => {
 					},
 				},
 				output: {
-					nodeExecutionOrder: ['Start'],
 					nodeData: {
-						'Micosoft Entra ID': [microsoftEntraNodeResponse.addUserToGroup],
+						'Microsoft Entra ID': [microsoftEntraNodeResponse.addUserToGroup],
 					},
 				},
 				nock: {
@@ -106,7 +107,7 @@ describe('Gong Node', () => {
 							{
 								parameters: {},
 								id: '416e4fc1-5055-4e61-854e-a6265256ac26',
-								name: "When clicking 'Test workflow'",
+								name: 'When clicking ‘Execute workflow’',
 								type: 'n8n-nodes-base.manualTrigger',
 								position: [820, 380],
 								typeVersion: 1,
@@ -167,7 +168,7 @@ describe('Gong Node', () => {
 								typeVersion: 1,
 								position: [220, 0],
 								id: '3429f7f2-dfca-4b72-8913-43a582e96e66',
-								name: 'Micosoft Entra ID',
+								name: 'Microsoft Entra ID',
 								credentials: {
 									microsoftEntraOAuth2Api: {
 										id: 'Hot2KwSMSoSmMVqd',
@@ -177,12 +178,12 @@ describe('Gong Node', () => {
 							},
 						],
 						connections: {
-							"When clicking 'Test workflow'": {
+							'When clicking ‘Execute workflow’': {
 								main: [
 									[
 										{
-											node: 'Micosoft Entra ID',
-											type: NodeConnectionType.Main,
+											node: 'Microsoft Entra ID',
+											type: NodeConnectionTypes.Main,
 											index: 0,
 										},
 									],
@@ -192,9 +193,8 @@ describe('Gong Node', () => {
 					},
 				},
 				output: {
-					nodeExecutionOrder: ['Start'],
 					nodeData: {
-						'Micosoft Entra ID': [microsoftEntraNodeResponse.createUser],
+						'Microsoft Entra ID': [microsoftEntraNodeResponse.createUser],
 					},
 				},
 				nock: {
@@ -283,7 +283,7 @@ describe('Gong Node', () => {
 							{
 								parameters: {},
 								id: '416e4fc1-5055-4e61-854e-a6265256ac26',
-								name: "When clicking 'Test workflow'",
+								name: 'When clicking ‘Execute workflow’',
 								type: 'n8n-nodes-base.manualTrigger',
 								position: [820, 380],
 								typeVersion: 1,
@@ -304,7 +304,7 @@ describe('Gong Node', () => {
 								typeVersion: 1,
 								position: [220, 0],
 								id: '3429f7f2-dfca-4b72-8913-43a582e96e66',
-								name: 'Micosoft Entra ID',
+								name: 'Microsoft Entra ID',
 								credentials: {
 									microsoftEntraOAuth2Api: {
 										id: 'Hot2KwSMSoSmMVqd',
@@ -314,12 +314,12 @@ describe('Gong Node', () => {
 							},
 						],
 						connections: {
-							"When clicking 'Test workflow'": {
+							'When clicking ‘Execute workflow’': {
 								main: [
 									[
 										{
-											node: 'Micosoft Entra ID',
-											type: NodeConnectionType.Main,
+											node: 'Microsoft Entra ID',
+											type: NodeConnectionTypes.Main,
 											index: 0,
 										},
 									],
@@ -329,9 +329,8 @@ describe('Gong Node', () => {
 					},
 				},
 				output: {
-					nodeExecutionOrder: ['Start'],
 					nodeData: {
-						'Micosoft Entra ID': [microsoftEntraNodeResponse.deleteUser],
+						'Microsoft Entra ID': [microsoftEntraNodeResponse.deleteUser],
 					},
 				},
 				nock: {
@@ -354,7 +353,7 @@ describe('Gong Node', () => {
 							{
 								parameters: {},
 								id: '416e4fc1-5055-4e61-854e-a6265256ac26',
-								name: "When clicking 'Test workflow'",
+								name: 'When clicking ‘Execute workflow’',
 								type: 'n8n-nodes-base.manualTrigger',
 								position: [820, 380],
 								typeVersion: 1,
@@ -375,7 +374,7 @@ describe('Gong Node', () => {
 								typeVersion: 1,
 								position: [220, 0],
 								id: '3429f7f2-dfca-4b72-8913-43a582e96e66',
-								name: 'Micosoft Entra ID',
+								name: 'Microsoft Entra ID',
 								credentials: {
 									microsoftEntraOAuth2Api: {
 										id: 'Hot2KwSMSoSmMVqd',
@@ -385,12 +384,12 @@ describe('Gong Node', () => {
 							},
 						],
 						connections: {
-							"When clicking 'Test workflow'": {
+							'When clicking ‘Execute workflow’': {
 								main: [
 									[
 										{
-											node: 'Micosoft Entra ID',
-											type: NodeConnectionType.Main,
+											node: 'Microsoft Entra ID',
+											type: NodeConnectionTypes.Main,
 											index: 0,
 										},
 									],
@@ -400,9 +399,8 @@ describe('Gong Node', () => {
 					},
 				},
 				output: {
-					nodeExecutionOrder: ['Start'],
 					nodeData: {
-						'Micosoft Entra ID': [microsoftEntraNodeResponse.getUser],
+						'Microsoft Entra ID': [microsoftEntraNodeResponse.getUser],
 					},
 				},
 				nock: {
@@ -425,7 +423,7 @@ describe('Gong Node', () => {
 							{
 								parameters: {},
 								id: '416e4fc1-5055-4e61-854e-a6265256ac26',
-								name: "When clicking 'Test workflow'",
+								name: 'When clicking ‘Execute workflow’',
 								type: 'n8n-nodes-base.manualTrigger',
 								position: [820, 380],
 								typeVersion: 1,
@@ -523,7 +521,7 @@ describe('Gong Node', () => {
 								typeVersion: 1,
 								position: [220, 0],
 								id: '3429f7f2-dfca-4b72-8913-43a582e96e66',
-								name: 'Micosoft Entra ID',
+								name: 'Microsoft Entra ID',
 								credentials: {
 									microsoftEntraOAuth2Api: {
 										id: 'Hot2KwSMSoSmMVqd',
@@ -533,12 +531,12 @@ describe('Gong Node', () => {
 							},
 						],
 						connections: {
-							"When clicking 'Test workflow'": {
+							'When clicking ‘Execute workflow’': {
 								main: [
 									[
 										{
-											node: 'Micosoft Entra ID',
-											type: NodeConnectionType.Main,
+											node: 'Microsoft Entra ID',
+											type: NodeConnectionTypes.Main,
 											index: 0,
 										},
 									],
@@ -548,9 +546,8 @@ describe('Gong Node', () => {
 					},
 				},
 				output: {
-					nodeExecutionOrder: ['Start'],
 					nodeData: {
-						'Micosoft Entra ID': [
+						'Microsoft Entra ID': [
 							[
 								{
 									json: {
@@ -586,7 +583,7 @@ describe('Gong Node', () => {
 							{
 								parameters: {},
 								id: '416e4fc1-5055-4e61-854e-a6265256ac26',
-								name: "When clicking 'Test workflow'",
+								name: 'When clicking ‘Execute workflow’',
 								type: 'n8n-nodes-base.manualTrigger',
 								position: [820, 380],
 								typeVersion: 1,
@@ -604,7 +601,7 @@ describe('Gong Node', () => {
 								typeVersion: 1,
 								position: [220, 0],
 								id: '3429f7f2-dfca-4b72-8913-43a582e96e66',
-								name: 'Micosoft Entra ID',
+								name: 'Microsoft Entra ID',
 								credentials: {
 									microsoftEntraOAuth2Api: {
 										id: 'Hot2KwSMSoSmMVqd',
@@ -614,12 +611,12 @@ describe('Gong Node', () => {
 							},
 						],
 						connections: {
-							"When clicking 'Test workflow'": {
+							'When clicking ‘Execute workflow’': {
 								main: [
 									[
 										{
-											node: 'Micosoft Entra ID',
-											type: NodeConnectionType.Main,
+											node: 'Microsoft Entra ID',
+											type: NodeConnectionTypes.Main,
 											index: 0,
 										},
 									],
@@ -629,9 +626,8 @@ describe('Gong Node', () => {
 					},
 				},
 				output: {
-					nodeExecutionOrder: ['Start'],
 					nodeData: {
-						'Micosoft Entra ID': [new Array(102).fill(microsoftEntraNodeResponse.getUser[0])],
+						'Microsoft Entra ID': [new Array(102).fill(microsoftEntraNodeResponse.getUser[0])],
 					},
 				},
 				nock: {
@@ -668,7 +664,7 @@ describe('Gong Node', () => {
 							{
 								parameters: {},
 								id: '416e4fc1-5055-4e61-854e-a6265256ac26',
-								name: "When clicking 'Test workflow'",
+								name: 'When clicking ‘Execute workflow’',
 								type: 'n8n-nodes-base.manualTrigger',
 								position: [820, 380],
 								typeVersion: 1,
@@ -686,7 +682,7 @@ describe('Gong Node', () => {
 								typeVersion: 1,
 								position: [220, 0],
 								id: '3429f7f2-dfca-4b72-8913-43a582e96e66',
-								name: 'Micosoft Entra ID',
+								name: 'Microsoft Entra ID',
 								credentials: {
 									microsoftEntraOAuth2Api: {
 										id: 'Hot2KwSMSoSmMVqd',
@@ -696,12 +692,12 @@ describe('Gong Node', () => {
 							},
 						],
 						connections: {
-							"When clicking 'Test workflow'": {
+							'When clicking ‘Execute workflow’': {
 								main: [
 									[
 										{
-											node: 'Micosoft Entra ID',
-											type: NodeConnectionType.Main,
+											node: 'Microsoft Entra ID',
+											type: NodeConnectionTypes.Main,
 											index: 0,
 										},
 									],
@@ -711,9 +707,8 @@ describe('Gong Node', () => {
 					},
 				},
 				output: {
-					nodeExecutionOrder: ['Start'],
 					nodeData: {
-						'Micosoft Entra ID': [new Array(10).fill(microsoftEntraNodeResponse.getUser[0])],
+						'Microsoft Entra ID': [new Array(10).fill(microsoftEntraNodeResponse.getUser[0])],
 					},
 				},
 				nock: {
@@ -741,7 +736,7 @@ describe('Gong Node', () => {
 							{
 								parameters: {},
 								id: '416e4fc1-5055-4e61-854e-a6265256ac26',
-								name: "When clicking 'Test workflow'",
+								name: 'When clicking ‘Execute workflow’',
 								type: 'n8n-nodes-base.manualTrigger',
 								position: [820, 380],
 								typeVersion: 1,
@@ -826,7 +821,7 @@ describe('Gong Node', () => {
 								typeVersion: 1,
 								position: [220, 0],
 								id: '3429f7f2-dfca-4b72-8913-43a582e96e66',
-								name: 'Micosoft Entra ID',
+								name: 'Microsoft Entra ID',
 								credentials: {
 									microsoftEntraOAuth2Api: {
 										id: 'Hot2KwSMSoSmMVqd',
@@ -836,12 +831,12 @@ describe('Gong Node', () => {
 							},
 						],
 						connections: {
-							"When clicking 'Test workflow'": {
+							'When clicking ‘Execute workflow’': {
 								main: [
 									[
 										{
-											node: 'Micosoft Entra ID',
-											type: NodeConnectionType.Main,
+											node: 'Microsoft Entra ID',
+											type: NodeConnectionTypes.Main,
 											index: 0,
 										},
 									],
@@ -851,9 +846,8 @@ describe('Gong Node', () => {
 					},
 				},
 				output: {
-					nodeExecutionOrder: ['Start'],
 					nodeData: {
-						'Micosoft Entra ID': [
+						'Microsoft Entra ID': [
 							new Array(102).fill({
 								json: {
 									'@odata.context': 'https://graph.microsoft.com/v1.0/$metadata#users(id)/$entity',
@@ -903,7 +897,7 @@ describe('Gong Node', () => {
 							{
 								parameters: {},
 								id: '416e4fc1-5055-4e61-854e-a6265256ac26',
-								name: "When clicking 'Test workflow'",
+								name: 'When clicking ‘Execute workflow’',
 								type: 'n8n-nodes-base.manualTrigger',
 								position: [820, 380],
 								typeVersion: 1,
@@ -928,7 +922,7 @@ describe('Gong Node', () => {
 								typeVersion: 1,
 								position: [220, 0],
 								id: '3429f7f2-dfca-4b72-8913-43a582e96e66',
-								name: 'Micosoft Entra ID',
+								name: 'Microsoft Entra ID',
 								credentials: {
 									microsoftEntraOAuth2Api: {
 										id: 'Hot2KwSMSoSmMVqd',
@@ -938,12 +932,12 @@ describe('Gong Node', () => {
 							},
 						],
 						connections: {
-							"When clicking 'Test workflow'": {
+							'When clicking ‘Execute workflow’': {
 								main: [
 									[
 										{
-											node: 'Micosoft Entra ID',
-											type: NodeConnectionType.Main,
+											node: 'Microsoft Entra ID',
+											type: NodeConnectionTypes.Main,
 											index: 0,
 										},
 									],
@@ -953,9 +947,8 @@ describe('Gong Node', () => {
 					},
 				},
 				output: {
-					nodeExecutionOrder: ['Start'],
 					nodeData: {
-						'Micosoft Entra ID': [microsoftEntraNodeResponse.removeUserFromGroup],
+						'Microsoft Entra ID': [microsoftEntraNodeResponse.removeUserFromGroup],
 					},
 				},
 				nock: {
@@ -978,7 +971,7 @@ describe('Gong Node', () => {
 							{
 								parameters: {},
 								id: '416e4fc1-5055-4e61-854e-a6265256ac26',
-								name: "When clicking 'Test workflow'",
+								name: 'When clicking ‘Execute workflow’',
 								type: 'n8n-nodes-base.manualTrigger',
 								position: [820, 380],
 								typeVersion: 1,
@@ -1046,7 +1039,7 @@ describe('Gong Node', () => {
 								typeVersion: 1,
 								position: [220, 0],
 								id: '3429f7f2-dfca-4b72-8913-43a582e96e66',
-								name: 'Micosoft Entra ID',
+								name: 'Microsoft Entra ID',
 								credentials: {
 									microsoftEntraOAuth2Api: {
 										id: 'Hot2KwSMSoSmMVqd',
@@ -1056,12 +1049,12 @@ describe('Gong Node', () => {
 							},
 						],
 						connections: {
-							"When clicking 'Test workflow'": {
+							'When clicking ‘Execute workflow’': {
 								main: [
 									[
 										{
-											node: 'Micosoft Entra ID',
-											type: NodeConnectionType.Main,
+											node: 'Microsoft Entra ID',
+											type: NodeConnectionTypes.Main,
 											index: 0,
 										},
 									],
@@ -1071,9 +1064,8 @@ describe('Gong Node', () => {
 					},
 				},
 				output: {
-					nodeExecutionOrder: ['Start'],
 					nodeData: {
-						'Micosoft Entra ID': [microsoftEntraNodeResponse.updateUser],
+						'Microsoft Entra ID': [microsoftEntraNodeResponse.updateUser],
 					},
 				},
 				nock: {
@@ -1096,8 +1088,6 @@ describe('Gong Node', () => {
 								employeeId: 'employee-id-123',
 								employeeType: 'Contractor',
 								givenName: 'John',
-								employeeHireDate: null,
-								employeeLeaveDateTime: null,
 								employeeOrgData: {
 									costCenter: 'Cost Center 1',
 									division: 'Division 1',
@@ -1146,16 +1136,334 @@ describe('Gong Node', () => {
 			},
 		];
 
-		const nodeTypes = Helpers.setup(tests);
+		for (const testData of tests) {
+			testHarness.setupTest(testData);
+		}
+	});
 
-		test.each(tests)('$description', async (testData) => {
-			const { result } = await executeWorkflow(testData, nodeTypes);
+	describe('Accepted user IDs', () => {
+		// Only the user templates can carry a UPN. The five group templates take a GUID, which
+		// encodes to itself, so there is nothing falsifiable to assert for them.
+		const guestUpn = 'user_contoso.com#EXT#@tenant.onmicrosoft.com';
+		const guestPath = '/users/user_contoso.com%23EXT%23%40tenant.onmicrosoft.com';
 
-			const resultNodeData = Helpers.getResultNodeData(result, testData);
-			resultNodeData.forEach(({ nodeName, resultData }) =>
-				expect(resultData).toEqual(testData.output.nodeData[nodeName]),
+		const deleteUser = (
+			description: string,
+			user: INodeParameters,
+			path: string,
+		): WorkflowTestData => ({
+			description,
+			input: {
+				workflowData: entraWorkflow({
+					resource: 'user',
+					operation: 'delete',
+					user,
+					options: {},
+				}),
+			},
+			output: { nodeData: { 'Microsoft Entra ID': [microsoftEntraNodeResponse.deleteUser] } },
+			nock: {
+				baseUrl,
+				mocks: [{ method: 'delete', path, statusCode: 204, responseBody: {} }],
+			},
+		});
+
+		const tests: WorkflowTestData[] = [
+			deleteUser(
+				'should delete a user addressed by an expression-driven UPN',
+				{ __rl: true, mode: 'id', value: '={{ "john.doe@contoso.com" }}' },
+				'/users/john.doe%40contoso.com',
+			),
+			deleteUser(
+				'should delete a guest user addressed by UPN',
+				{ __rl: true, mode: 'id', value: guestUpn },
+				guestPath,
+			),
+			deleteUser(
+				'should delete a user picked from the list',
+				{ __rl: true, mode: 'list', value: guid },
+				`/users/${guid}`,
+			),
+			{
+				description: 'should get a guest user addressed by UPN',
+				input: {
+					workflowData: entraWorkflow({
+						resource: 'user',
+						operation: 'get',
+						user: { __rl: true, mode: 'id', value: guestUpn },
+						output: 'fields',
+						fields: [],
+					}),
+				},
+				output: { nodeData: { 'Microsoft Entra ID': [microsoftEntraNodeResponse.getUser] } },
+				nock: {
+					baseUrl,
+					mocks: [
+						{
+							method: 'get',
+							path: `${guestPath}?$select=id`,
+							statusCode: 200,
+							responseBody: microsoftEntraApiResponse.getUser,
+						},
+					],
+				},
+			},
+			{
+				description: 'should add a user addressed by UPN to a group',
+				input: {
+					workflowData: entraWorkflow({
+						resource: 'user',
+						operation: 'addGroup',
+						group: { __rl: true, mode: 'id', value: groupGuid },
+						user: { __rl: true, mode: 'id', value: 'jane@contoso.com' },
+					}),
+				},
+				output: {
+					nodeData: { 'Microsoft Entra ID': [microsoftEntraNodeResponse.addUserToGroup] },
+				},
+				nock: {
+					baseUrl,
+					mocks: [
+						{
+							method: 'post',
+							path: `/groups/${groupGuid}/members/$ref`,
+							statusCode: 204,
+							requestBody: {
+								'@odata.id': 'https://graph.microsoft.com/v1.0/directoryObjects/jane%40contoso.com',
+							},
+							responseBody: {},
+						},
+					],
+				},
+			},
+			{
+				// `update` sends a second, programmatic PATCH for the fields Graph only accepts on
+				// their own, so the ID reaches a Graph path twice.
+				description: 'should update a guest user on both of its requests',
+				input: {
+					workflowData: entraWorkflow({
+						resource: 'user',
+						operation: 'update',
+						user: { __rl: true, mode: 'id', value: guestUpn },
+						updateFields: { city: 'New York', aboutMe: 'About me' },
+					}),
+				},
+				output: { nodeData: { 'Microsoft Entra ID': [microsoftEntraNodeResponse.updateUser] } },
+				nock: {
+					baseUrl,
+					mocks: [
+						{
+							method: 'patch',
+							path: guestPath,
+							statusCode: 204,
+							requestBody: { city: 'New York' },
+							responseBody: {},
+						},
+						{
+							method: 'patch',
+							path: guestPath,
+							statusCode: 204,
+							requestBody: { aboutMe: 'About me' },
+							responseBody: {},
+						},
+					],
+				},
+			},
+		];
+
+		for (const testData of tests) {
+			testHarness.setupTest(testData);
+		}
+	});
+
+	describe('Rejected user IDs', () => {
+		expectNoGraphRequests();
+
+		const tests: WorkflowTestData[] = [
+			{
+				description: 'should reject an expression-driven ID containing a slash',
+				input: {
+					workflowData: entraWorkflow({
+						resource: 'user',
+						operation: 'get',
+						user: { __rl: true, mode: 'id', value: '={{ "a/b" }}' },
+						output: 'raw',
+					}),
+				},
+				output: { nodeData: {}, error: 'The user ID is invalid' },
+			},
+			{
+				description: 'should reject an ID containing a slash on a two-ID operation',
+				input: {
+					workflowData: entraWorkflow({
+						resource: 'user',
+						operation: 'removeGroup',
+						group: { __rl: true, mode: 'id', value: groupGuid },
+						user: { __rl: true, mode: 'id', value: `${guid}/manager` },
+					}),
+				},
+				output: { nodeData: {}, error: 'The user ID is invalid' },
+			},
+			{
+				description: 'should reject a group ID containing a slash on a two-ID operation',
+				input: {
+					workflowData: entraWorkflow({
+						resource: 'user',
+						operation: 'removeGroup',
+						group: { __rl: true, mode: 'id', value: `${groupGuid}/members` },
+						user: { __rl: true, mode: 'id', value: guid },
+					}),
+				},
+				output: { nodeData: {}, error: 'The group ID is invalid' },
+			},
+			{
+				description: 'should reject a group ID containing a slash when adding to a group',
+				input: {
+					workflowData: entraWorkflow({
+						resource: 'user',
+						operation: 'addGroup',
+						group: { __rl: true, mode: 'id', value: `${groupGuid}/members` },
+						user: { __rl: true, mode: 'id', value: guid },
+					}),
+				},
+				output: { nodeData: {}, error: 'The group ID is invalid' },
+			},
+			{
+				description: 'should reject an ID that only reaches the request body',
+				input: {
+					workflowData: entraWorkflow({
+						resource: 'user',
+						operation: 'addGroup',
+						group: { __rl: true, mode: 'id', value: groupGuid },
+						user: { __rl: true, mode: 'id', value: `${guid}/manager` },
+					}),
+				},
+				output: { nodeData: {}, error: 'The user ID is invalid' },
+			},
+			{
+				// A legitimate UPN whose extracted substring is `..`, i.e. the one case the guard's
+				// own substring reasoning does not cover.
+				description: 'should reject a user carrying an ID extraction rule',
+				input: {
+					workflowData: entraWorkflow({
+						resource: 'user',
+						operation: 'get',
+						user: { __rl: true, mode: 'id', value: 'a..b@contoso.com', __regex: '(\\.\\.)' },
+						output: 'raw',
+					}),
+				},
+				output: { nodeData: {}, error: 'The user ID is invalid' },
+			},
+			{
+				description: 'should reject a blank user',
+				input: {
+					workflowData: entraWorkflow({
+						resource: 'user',
+						operation: 'get',
+						user: { __rl: true, mode: 'id', value: ' ' },
+						output: 'raw',
+					}),
+				},
+				output: { nodeData: {}, error: 'The user is empty' },
+			},
+		];
+
+		for (const testData of tests) {
+			testHarness.setupTest(testData);
+		}
+
+		// An empty or absent resource locator never reaches the request: the workflow refuses to
+		// start because the parameter is required.
+		it('reports an empty user as a node issue', () => {
+			const node = new MicrosoftEntra();
+			const [, entra] = entraWorkflow({
+				resource: 'user',
+				operation: 'get',
+				output: 'raw',
+				user: { __rl: true, mode: 'list', value: '' },
+			}).nodes;
+
+			const issues = NodeHelpers.getNodeParametersIssues(
+				node.description.properties,
+				entra,
+				node.description,
 			);
-			expect(result.status).toEqual('success');
+
+			expect(issues?.parameters?.user).toEqual(['Parameter "User to Get" is required.']);
+		});
+	});
+
+	describe('Per-item validation', () => {
+		testHarness.setupTest({
+			description: 'should delete the valid user and fail only the item with an invalid ID',
+			input: {
+				workflowData: {
+					nodes: [
+						{
+							parameters: {},
+							id: '416e4fc1-5055-4e61-854e-a6265256ac26',
+							name: 'When clicking ‘Execute workflow’',
+							type: 'n8n-nodes-base.manualTrigger',
+							position: [820, 380],
+							typeVersion: 1,
+						},
+						{
+							parameters: { data: JSON.stringify([{ id: guid }, { id: `${guid}/manager` }]) },
+							id: '2c1e0f0e-6d0c-4a2e-9a8f-6b2a1c0d3e4f',
+							name: 'Test Data',
+							type: 'n8n-nodes-testing.testData',
+							position: [20, 0],
+							typeVersion: 1,
+						},
+						{
+							parameters: {
+								resource: 'user',
+								operation: 'delete',
+								user: { __rl: true, mode: 'id', value: '={{ $json.id }}' },
+								options: {},
+								requestOptions: {},
+							},
+							type: 'n8n-nodes-base.microsoftEntra',
+							typeVersion: 1,
+							position: [220, 0],
+							id: '3429f7f2-dfca-4b72-8913-43a582e96e66',
+							name: 'Microsoft Entra ID',
+							onError: 'continueRegularOutput',
+							credentials: {
+								microsoftEntraOAuth2Api: {
+									id: 'Hot2KwSMSoSmMVqd',
+									name: 'Microsoft Entra ID (Azure Active Directory) account',
+								},
+							},
+						},
+					],
+					connections: {
+						'When clicking ‘Execute workflow’': {
+							main: [[{ node: 'Test Data', type: NodeConnectionTypes.Main, index: 0 }]],
+						},
+						'Test Data': {
+							main: [[{ node: 'Microsoft Entra ID', type: NodeConnectionTypes.Main, index: 0 }]],
+						},
+					},
+				},
+			},
+			output: {
+				nodeData: {
+					'Microsoft Entra ID': [
+						[
+							{ json: { deleted: true } },
+							{
+								json: { error: 'The user ID is invalid' },
+								error: expect.objectContaining({ message: 'The user ID is invalid' }),
+							},
+						],
+					],
+				},
+			},
+			nock: {
+				baseUrl,
+				mocks: [{ method: 'delete', path: `/users/${guid}`, statusCode: 204, responseBody: {} }],
+			},
 		});
 	});
 });

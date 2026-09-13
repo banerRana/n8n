@@ -1,4 +1,3 @@
-/* eslint-disable n8n-nodes-base/node-dirname-against-convention */
 import { DynamicTool } from '@langchain/core/tools';
 import type {
 	INodeType,
@@ -8,10 +7,15 @@ import type {
 	IHttpRequestMethods,
 	IHttpRequestOptions,
 } from 'n8n-workflow';
-import { NodeConnectionType, NodeOperationError, tryToParseAlphanumericString } from 'n8n-workflow';
+import {
+	NodeConnectionTypes,
+	NodeOperationError,
+	nodeNameToToolName,
+	tryToParseAlphanumericString,
+} from 'n8n-workflow';
 
 import { N8nTool } from '@utils/N8nTool';
-import { getConnectionHintNoticeField } from '@utils/sharedFields';
+import { getConnectionHintNoticeField } from '@n8n/ai-utilities';
 
 import {
 	authenticationProperties,
@@ -59,13 +63,19 @@ export class ToolHttpRequest implements INodeType {
 				],
 			},
 		},
-		// eslint-disable-next-line n8n-nodes-base/node-class-description-inputs-wrong-regular-node
+		// Replaced by a `usableAsTool` version of the standalone HttpRequest node
+		hidden: true,
+		builderHint: {
+			searchHint:
+				'Do not use this node. Attach the HTTP Request node as a tool (`n8n-nodes-base.httpRequestTool`) instead. It gives an agent the same request builder with the full parameter set.',
+		},
+
 		inputs: [],
-		// eslint-disable-next-line n8n-nodes-base/node-class-description-outputs-wrong
-		outputs: [NodeConnectionType.AiTool],
+
+		outputs: [NodeConnectionTypes.AiTool],
 		outputNames: ['Tool'],
 		properties: [
-			getConnectionHintNoticeField([NodeConnectionType.AiAgent]),
+			getConnectionHintNoticeField([NodeConnectionTypes.AiAgent]),
 			{
 				displayName: 'Description',
 				name: 'toolDescription',
@@ -249,7 +259,7 @@ export class ToolHttpRequest implements INodeType {
 	};
 
 	async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyData> {
-		const name = this.getNode().name.replace(/ /g, '_');
+		const name = nodeNameToToolName(this.getNode());
 		try {
 			tryToParseAlphanumericString(name);
 		} catch (error) {

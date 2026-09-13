@@ -7,7 +7,10 @@ import type {
 	INodeTypeDescription,
 	JsonObject,
 } from 'n8n-workflow';
-import { NodeConnectionType, jsonParse, NodeApiError } from 'n8n-workflow';
+import { NodeConnectionTypes, NodeApiError } from 'n8n-workflow';
+
+import { parseAndResolveQueryParameters } from '@utils/query-parameters';
+import { toPathSegment } from '@utils/url';
 
 import { documentFields, documentOperations, indexFields, indexOperations } from './descriptions';
 import {
@@ -26,11 +29,13 @@ export class Elasticsearch implements INodeType {
 		version: 1,
 		subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
 		description: 'Consume the Elasticsearch API',
+		schemaPath: 'Elastic/Elasticsearch',
 		defaults: {
 			name: 'Elasticsearch',
 		},
-		inputs: [NodeConnectionType.Main],
-		outputs: [NodeConnectionType.Main],
+		usableAsTool: true,
+		inputs: [NodeConnectionTypes.Main],
+		outputs: [NodeConnectionTypes.Main],
 		credentials: [
 			{
 				name: 'elasticsearchApi',
@@ -97,7 +102,7 @@ export class Elasticsearch implements INodeType {
 							},
 						});
 					} else {
-						const endpoint = `/${indexId}/_doc/${documentId}`;
+						const endpoint = `/${toPathSegment(indexId)}/_doc/${toPathSegment(documentId)}`;
 						responseData = await elasticsearchApiRequest.call(this, 'DELETE', endpoint);
 					}
 				} else if (operation === 'get') {
@@ -118,7 +123,7 @@ export class Elasticsearch implements INodeType {
 						qs._source = true;
 					}
 
-					const endpoint = `/${indexId}/_doc/${documentId}`;
+					const endpoint = `/${toPathSegment(indexId)}/_doc/${toPathSegment(documentId)}`;
 					responseData = await elasticsearchApiRequest.call(this, 'GET', endpoint, {}, qs);
 
 					const simple = this.getNodeParameter('simple', i) as IDataObject;
@@ -144,11 +149,16 @@ export class Elasticsearch implements INodeType {
 					// const paginate = this.getNodeParameter('paginate', i) as boolean;
 
 					if (Object.keys(options).length) {
-						const { query, ...rest } = options;
+						const { query, queryParameters, ...rest } = options;
 						if (query) {
 							Object.assign(
 								body,
-								jsonParse(query, { errorMessage: "Invalid JSON in 'Query' option" }),
+								parseAndResolveQueryParameters(
+									query,
+									queryParameters ?? '[]',
+									this.getNode(),
+									i,
+								) as IDataObject,
 							);
 						}
 						Object.assign(qs, rest);
@@ -171,7 +181,7 @@ export class Elasticsearch implements INodeType {
 							responseData = await elasticsearchApiRequest.call(
 								this,
 								'POST',
-								`/${indexId}/_search`,
+								`/${toPathSegment(indexId)}/_search`,
 								body,
 								qs,
 							);
@@ -183,7 +193,7 @@ export class Elasticsearch implements INodeType {
 						responseData = await elasticsearchApiRequest.call(
 							this,
 							'POST',
-							`/${indexId}/_search`,
+							`/${toPathSegment(indexId)}/_search`,
 							body,
 							qs,
 						);
@@ -247,10 +257,10 @@ export class Elasticsearch implements INodeType {
 						bulkBody[i] += `\n${JSON.stringify(body)}`;
 					} else {
 						if (documentId) {
-							const endpoint = `/${indexId}/_doc/${documentId}`;
+							const endpoint = `/${toPathSegment(indexId)}/_doc/${toPathSegment(documentId)}`;
 							responseData = await elasticsearchApiRequest.call(this, 'PUT', endpoint, body);
 						} else {
-							const endpoint = `/${indexId}/_doc`;
+							const endpoint = `/${toPathSegment(indexId)}/_doc`;
 							responseData = await elasticsearchApiRequest.call(this, 'POST', endpoint, body);
 						}
 					}
@@ -284,7 +294,6 @@ export class Elasticsearch implements INodeType {
 					const indexId = this.getNodeParameter('indexId', i);
 					const documentId = this.getNodeParameter('documentId', i);
 
-					const endpoint = `/${indexId}/_update/${documentId}`;
 					if (bulkOperation) {
 						bulkBody[i] = JSON.stringify({
 							update: {
@@ -294,6 +303,7 @@ export class Elasticsearch implements INodeType {
 						});
 						bulkBody[i] += `\n${JSON.stringify(body)}`;
 					} else {
+						const endpoint = `/${toPathSegment(indexId)}/_update/${toPathSegment(documentId)}`;
 						responseData = await elasticsearchApiRequest.call(this, 'POST', endpoint, body);
 					}
 				}
@@ -323,7 +333,11 @@ export class Elasticsearch implements INodeType {
 						Object.assign(qs, rest);
 					}
 
-					responseData = await elasticsearchApiRequest.call(this, 'PUT', `/${indexId}`);
+					responseData = await elasticsearchApiRequest.call(
+						this,
+						'PUT',
+						`/${toPathSegment(indexId)}`,
+					);
 					responseData = { id: indexId, ...responseData };
 					delete responseData.index;
 				} else if (operation === 'delete') {
@@ -335,7 +349,11 @@ export class Elasticsearch implements INodeType {
 
 					const indexId = this.getNodeParameter('indexId', i);
 
-					responseData = await elasticsearchApiRequest.call(this, 'DELETE', `/${indexId}`);
+					responseData = await elasticsearchApiRequest.call(
+						this,
+						'DELETE',
+						`/${toPathSegment(indexId)}`,
+					);
 					responseData = { success: true };
 				} else if (operation === 'get') {
 					// ----------------------------------------
@@ -353,7 +371,13 @@ export class Elasticsearch implements INodeType {
 						Object.assign(qs, additionalFields);
 					}
 
-					responseData = await elasticsearchApiRequest.call(this, 'GET', `/${indexId}`, {}, qs);
+					responseData = await elasticsearchApiRequest.call(
+						this,
+						'GET',
+						`/${toPathSegment(indexId)}`,
+						{},
+						qs,
+					);
 					responseData = { id: indexId, ...responseData[indexId] };
 				} else if (operation === 'getAll') {
 					// ----------------------------------------

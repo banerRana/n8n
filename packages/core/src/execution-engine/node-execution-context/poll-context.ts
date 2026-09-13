@@ -1,5 +1,8 @@
+import { Time } from '@n8n/constants';
+import { createDeferredPromise } from '@n8n/utils/promise/deferred-promise';
 import type {
 	ICredentialDataDecryptedObject,
+	IDataObject,
 	INode,
 	IPollFunctions,
 	IWorkflowExecuteAdditionalData,
@@ -7,24 +10,20 @@ import type {
 	WorkflowActivateMode,
 	WorkflowExecuteMode,
 } from 'n8n-workflow';
-import { ApplicationError, createDeferredPromise } from 'n8n-workflow';
-
-// eslint-disable-next-line import/no-cycle
-import {
-	getBinaryHelperFunctions,
-	getRequestHelperFunctions,
-	getSchedulingFunctions,
-	returnJsonArray,
-} from '@/node-execute-functions';
+import { UnexpectedError } from 'n8n-workflow';
 
 import { NodeExecutionContext } from './node-execution-context';
+import { getBinaryHelperFunctions } from './utils/binary-helper-functions';
+import { getRequestHelperFunctions } from './utils/request-helper-functions';
+import { returnJsonArray } from './utils/return-json-array';
+import { getSchedulingFunctions } from './utils/scheduling-helper-functions';
 
 const throwOnEmit = () => {
-	throw new ApplicationError('Overwrite PollContext.__emit function');
+	throw new UnexpectedError('Overwrite PollContext.__emit function');
 };
 
 const throwOnEmitError = () => {
-	throw new ApplicationError('Overwrite PollContext.__emitError function');
+	throw new UnexpectedError('Overwrite PollContext.__emitError function');
 };
 
 export class PollContext extends NodeExecutionContext implements IPollFunctions {
@@ -38,6 +37,19 @@ export class PollContext extends NodeExecutionContext implements IPollFunctions 
 		private readonly activation: WorkflowActivateMode,
 		readonly __emit: IPollFunctions['__emit'] = throwOnEmit,
 		readonly __emitError: IPollFunctions['__emitError'] = throwOnEmitError,
+		// Nothing to commit by default: the node's own static-data mutations are
+		// persisted by the caller's static-data save.
+		readonly __commitCursor: NonNullable<IPollFunctions['__commitCursor']> = async () => {},
+		readonly __runPoll: NonNullable<IPollFunctions['__runPoll']> = async (poll) => await poll(),
+		// Defaults to the node's real static data, for polls run outside a durable
+		// staging scope (e.g. a manual test run).
+		private readonly resolveNodeStaticData: () => IDataObject = () =>
+			this.workflow.getStaticData('node', this.node),
+		// Generous fallback for polls that run outside the durable scheduler (e.g. a
+		// manual test run): no lease bounds them, but nodes still size their fetch
+		// loop from a finite budget.
+		readonly getPollBudgetMs: IPollFunctions['getPollBudgetMs'] = () =>
+			5 * Time.minutes.toMilliseconds,
 	) {
 		super(workflow, node, additionalData, mode);
 
@@ -46,8 +58,13 @@ export class PollContext extends NodeExecutionContext implements IPollFunctions 
 			returnJsonArray,
 			...getRequestHelperFunctions(workflow, node, additionalData),
 			...getBinaryHelperFunctions(additionalData, workflow.id),
-			...getSchedulingFunctions(workflow),
+			...getSchedulingFunctions(workflow.id, workflow.timezone, node.id),
 		};
+	}
+
+	getWorkflowStaticData(type: string): IDataObject {
+		if (type === 'node') return this.resolveNodeStaticData();
+		return super.getWorkflowStaticData(type);
 	}
 
 	getActivationMode() {
@@ -55,6 +72,6 @@ export class PollContext extends NodeExecutionContext implements IPollFunctions 
 	}
 
 	async getCredentials<T extends object = ICredentialDataDecryptedObject>(type: string) {
-		return await this._getCredentials<T>(type);
+		return await this._getRunlessCredentials<T>(type);
 	}
 }

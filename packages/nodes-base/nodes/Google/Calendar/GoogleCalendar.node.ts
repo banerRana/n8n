@@ -10,12 +10,7 @@ import type {
 	JsonObject,
 	NodeExecutionHint,
 } from 'n8n-workflow';
-import {
-	NodeConnectionType,
-	NodeApiError,
-	NodeOperationError,
-	NodeExecutionOutput,
-} from 'n8n-workflow';
+import { NodeConnectionTypes, NodeApiError, NodeOperationError } from 'n8n-workflow';
 import { v4 as uuid } from 'uuid';
 
 import { calendarFields, calendarOperations } from './CalendarDescription';
@@ -45,11 +40,20 @@ export class GoogleCalendar implements INodeType {
 		version: [1, 1.1, 1.2, 1.3],
 		subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
 		description: 'Consume Google Calendar API',
+		schemaPath: 'Google/Calendar',
 		defaults: {
 			name: 'Google Calendar',
 		},
-		inputs: [NodeConnectionType.Main],
-		outputs: [NodeConnectionType.Main],
+		inputs: [NodeConnectionTypes.Main],
+		outputs: [NodeConnectionTypes.Main],
+		builderHint: {
+			relatedNodes: [
+				{
+					nodeType: 'n8n-nodes-base.googleCalendarTool',
+					relationHint: 'Tool version for AI Agent use',
+				},
+			],
+		},
 		usableAsTool: true,
 		credentials: [
 			{
@@ -435,10 +439,10 @@ export class GoogleCalendar implements INodeType {
 							const timeMin = dateObjectToISO(this.getNodeParameter('timeMin', i));
 							const timeMax = dateObjectToISO(this.getNodeParameter('timeMax', i));
 							if (timeMin) {
-								qs.timeMin = addTimezoneToDate(timeMin as string, tz || timezone);
+								qs.timeMin = addTimezoneToDate(timeMin, tz || timezone);
 							}
 							if (timeMax) {
-								qs.timeMax = addTimezoneToDate(timeMax as string, tz || timezone);
+								qs.timeMax = addTimezoneToDate(timeMax, tz || timezone);
 							}
 
 							if (!options.recurringEventHandling || options.recurringEventHandling === 'expand') {
@@ -619,16 +623,21 @@ export class GoogleCalendar implements INodeType {
 							qs.sendUpdates = updateFields.sendUpdates as string;
 						}
 						const body: IEvent = {};
+						// PATCH merges nested objects, so an event that is currently all-day keeps
+						// its `date` unless we clear it, and Google rejects a start/end carrying
+						// both `date` and `dateTime`. Same in reverse for the all-day branch below.
 						if (updateFields.start) {
 							body.start = {
 								dateTime: moment.tz(updateFields.start, updateTimezone).utc().format(),
 								timeZone: updateTimezone,
+								date: null,
 							};
 						}
 						if (updateFields.end) {
 							body.end = {
 								dateTime: moment.tz(updateFields.end, updateTimezone).utc().format(),
 								timeZone: updateTimezone,
+								date: null,
 							};
 						}
 						// nodeVersion < 1.2
@@ -721,11 +730,13 @@ export class GoogleCalendar implements INodeType {
 								date: updateTimezone
 									? moment.tz(updateFields.start, updateTimezone).utc(true).format('YYYY-MM-DD')
 									: moment.tz(updateFields.start, moment.tz.guess()).utc(true).format('YYYY-MM-DD'),
+								dateTime: null,
 							};
 							body.end = {
 								date: updateTimezone
 									? moment.tz(updateFields.end, updateTimezone).utc(true).format('YYYY-MM-DD')
 									: moment.tz(updateFields.end, moment.tz.guess()).utc(true).format('YYYY-MM-DD'),
+								dateTime: null,
 							};
 						}
 						//example: RRULE:FREQ=WEEKLY;INTERVAL=2;COUNT=10;UNTIL=20110701T170000Z
@@ -811,7 +822,7 @@ export class GoogleCalendar implements INodeType {
 		}
 
 		if (hints.length) {
-			return new NodeExecutionOutput([nodeExecutionData], hints);
+			this.addExecutionHints(...hints);
 		}
 
 		return [nodeExecutionData];

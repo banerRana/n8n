@@ -1,15 +1,16 @@
+import { testDb, mockInstance } from '@n8n/backend-test-utils';
+import {
+	CredentialsEntity,
+	CredentialsRepository,
+	SharedWorkflowRepository,
+	WorkflowRepository,
+} from '@n8n/db';
 import { Container } from '@n8n/di';
-import { mock } from 'jest-mock-extended';
+import { mock } from 'vitest-mock-extended';
 
-import { CredentialsEntity } from '@/databases/entities/credentials-entity';
-import { CredentialsRepository } from '@/databases/repositories/credentials.repository';
-import { SharedWorkflowRepository } from '@/databases/repositories/shared-workflow.repository';
-import { WorkflowRepository } from '@/databases/repositories/workflow.repository';
 import { Telemetry } from '@/telemetry';
 import { EnterpriseWorkflowService } from '@/workflows/workflow.service.ee';
 
-import { mockInstance } from '../../shared/mocking';
-import * as testDb from '../shared/test-db';
 import {
 	FIRST_CREDENTIAL_ID,
 	SECOND_CREDENTIAL_ID,
@@ -25,20 +26,27 @@ describe('EnterpriseWorkflowService', () => {
 		mockInstance(Telemetry);
 
 		service = new EnterpriseWorkflowService(
-			mock(),
+			mock(), // logger
 			Container.get(SharedWorkflowRepository),
 			Container.get(WorkflowRepository),
 			Container.get(CredentialsRepository),
-			mock(),
-			mock(),
-			mock(),
-			mock(),
+			mock(), // credentialsService
+			mock(), // ownershipService
+			mock(), // projectService
+			mock(), // activeWorkflowManager
+			mock(), // credentialsFinderService
+			mock(), // enterpriseCredentialsService
+			mock(), // workflowFinderService
+			mock(), // folderRepository
+			mock(), // workflowPublishHistoryRepository
+			mock(), // workflowMutationHooks
+			mock(), // policyEnforcementService
 		);
 	});
 
 	afterEach(async () => {
-		await testDb.truncate(['Workflow']);
-		jest.restoreAllMocks();
+		await testDb.truncate(['WorkflowEntity']);
+		vi.restoreAllMocks();
 	});
 
 	afterAll(async () => {
@@ -97,6 +105,14 @@ describe('EnterpriseWorkflowService', () => {
 				addNodeWithTwoCreds: true,
 			});
 			const previousWorkflowVersion = getWorkflow({ addNodeWithOneCred: true });
+			expect(() => {
+				service.validateWorkflowCredentialUsage(newWorkflowVersion, previousWorkflowVersion, []);
+			}).toThrow();
+		});
+
+		it('Should throw error saving a workflow adding an Execute Sub-workflow node whose inline JSON uses an inaccessible credential', () => {
+			const newWorkflowVersion = getWorkflow({ addNodeWithInlineSubworkflowCred: true });
+			const previousWorkflowVersion = getWorkflow();
 			expect(() => {
 				service.validateWorkflowCredentialUsage(newWorkflowVersion, previousWorkflowVersion, []);
 			}).toThrow();
@@ -180,6 +196,62 @@ describe('EnterpriseWorkflowService', () => {
 			const workflow = getWorkflow({ addNodeWithOneCred: true, addNodeWithTwoCreds: true });
 			const nodesWithInaccessibleCreds = service.getNodesWithInaccessibleCreds(workflow, []);
 			expect(nodesWithInaccessibleCreds).toHaveLength(2);
+		});
+
+		test('Should flag an Execute Sub-workflow node referencing an inaccessible credential inside its inline workflow JSON', () => {
+			const workflow = getWorkflow({ addNodeWithInlineSubworkflowCred: true });
+			const nodesWithInaccessibleCreds = service.getNodesWithInaccessibleCreds(workflow, []);
+			expect(nodesWithInaccessibleCreds).toHaveLength(1);
+		});
+
+		test('Should not flag an Execute Sub-workflow node when the inline credential is accessible', () => {
+			const workflow = getWorkflow({ addNodeWithInlineSubworkflowCred: true });
+			const nodesWithInaccessibleCreds = service.getNodesWithInaccessibleCreds(workflow, [
+				FIRST_CREDENTIAL_ID,
+			]);
+			expect(nodesWithInaccessibleCreds).toHaveLength(0);
+		});
+
+		test('Should flag a Workflow Tool node referencing an inaccessible credential inside its inline workflow JSON', () => {
+			const workflow = getWorkflow({ addNodeWithWorkflowToolInlineCred: true });
+			const nodesWithInaccessibleCreds = service.getNodesWithInaccessibleCreds(workflow, []);
+			expect(nodesWithInaccessibleCreds).toHaveLength(1);
+		});
+
+		test('Should not flag a Workflow Tool node when the inline credential is accessible', () => {
+			const workflow = getWorkflow({ addNodeWithWorkflowToolInlineCred: true });
+			const nodesWithInaccessibleCreds = service.getNodesWithInaccessibleCreds(workflow, [
+				FIRST_CREDENTIAL_ID,
+			]);
+			expect(nodesWithInaccessibleCreds).toHaveLength(0);
+		});
+
+		test('Should flag a node referencing an inaccessible credential inside a nested inline sub-workflow', () => {
+			const workflow = getWorkflow({ addNodeWithNestedInlineSubworkflowCred: true });
+			const nodesWithInaccessibleCreds = service.getNodesWithInaccessibleCreds(workflow, []);
+			expect(nodesWithInaccessibleCreds).toHaveLength(1);
+		});
+
+		test('Should not flag a nested inline sub-workflow when the credential is accessible', () => {
+			const workflow = getWorkflow({ addNodeWithNestedInlineSubworkflowCred: true });
+			const nodesWithInaccessibleCreds = service.getNodesWithInaccessibleCreds(workflow, [
+				SECOND_CREDENTIAL_ID,
+			]);
+			expect(nodesWithInaccessibleCreds).toHaveLength(0);
+		});
+
+		test('Should flag an inaccessible credential buried in a deeply nested inline sub-workflow', () => {
+			const workflow = getWorkflow({ addNodeWithDeeplyNestedInlineCred: true });
+			const nodesWithInaccessibleCreds = service.getNodesWithInaccessibleCreds(workflow, []);
+			expect(nodesWithInaccessibleCreds).toHaveLength(1);
+		});
+
+		test('Should not flag a deeply nested inline sub-workflow when the credential is accessible', () => {
+			const workflow = getWorkflow({ addNodeWithDeeplyNestedInlineCred: true });
+			const nodesWithInaccessibleCreds = service.getNodesWithInaccessibleCreds(workflow, [
+				FIRST_CREDENTIAL_ID,
+			]);
+			expect(nodesWithInaccessibleCreds).toHaveLength(0);
 		});
 	});
 });

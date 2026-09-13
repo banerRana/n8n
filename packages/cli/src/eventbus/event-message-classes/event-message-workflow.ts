@@ -1,7 +1,6 @@
+import type { IExecutionBase } from '@n8n/db';
 import type { IWorkflowBase, JsonObject } from 'n8n-workflow';
 import { EventMessageTypeNames } from 'n8n-workflow';
-
-import type { IExecutionBase } from '@/interfaces';
 
 import type { EventNamesWorkflowType } from '.';
 import { AbstractEventMessage, isEventMessageOptionsWithType } from './abstract-event-message';
@@ -50,7 +49,7 @@ export class EventMessageWorkflow extends AbstractEventMessage {
 	deserialize(data: JsonObject): this {
 		if (isEventMessageOptionsWithType(data, this.__type)) {
 			this.setOptionsOrDefault(data);
-			if (data.payload) this.setPayload(data.payload as EventPayloadWorkflow);
+			if (data.payload) this.setPayload(data.payload);
 		}
 		return this;
 	}

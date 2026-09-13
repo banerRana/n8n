@@ -1,20 +1,19 @@
+import type { CredentialPayload } from '@n8n/backend-test-utils';
+import type { BooleanLicenseFeature, NumericLicenseFeature } from '@n8n/constants';
+import type { CredentialsEntity, Project, User, ICredentialsDb } from '@n8n/db';
 import type { Application } from 'express';
 import type { Server } from 'http';
-import type { ICredentialDataDecryptedObject } from 'n8n-workflow';
 import type TestAgent from 'supertest/lib/agent';
-
-import type { CredentialsEntity } from '@/databases/entities/credentials-entity';
-import type { Project } from '@/databases/entities/project';
-import type { User } from '@/databases/entities/user';
-import type { BooleanLicenseFeature, ICredentialsDb, NumericLicenseFeature } from '@/interfaces';
 
 import type { LicenseMocker } from './license';
 
 type EndpointGroup =
+	| 'activeWorkflows'
 	| 'health'
 	| 'me'
 	| 'users'
 	| 'auth'
+	| 'oauth1'
 	| 'oauth2'
 	| 'owner'
 	| 'passwordReset'
@@ -24,6 +23,8 @@ type EndpointGroup =
 	| 'community-packages'
 	| 'ldap'
 	| 'saml'
+	| 'oidc'
+	| 'otel'
 	| 'sourceControl'
 	| 'eventBus'
 	| 'license'
@@ -40,15 +41,50 @@ type EndpointGroup =
 	| 'debug'
 	| 'project'
 	| 'role'
+	| 'roleMappingRule'
+	| 'provisioning'
 	| 'dynamic-node-parameters'
 	| 'apiKeys'
 	| 'evaluation'
-	| 'ai';
+	| 'ai'
+	| 'folder'
+	| 'insights'
+	| 'module-settings'
+	| 'security-settings'
+	| 'data-table'
+	| 'third-party-licenses'
+	| 'mcp'
+	| 'workflowDependencies'
+	| 'encryption-keys'
+	| 'workflow-reviews'
+	| 'test-webhooks'
+	| 'type-availability-policies';
+
+type ModuleName =
+	| 'insights'
+	| 'external-secrets'
+	| 'community-packages'
+	| 'data-table'
+	| 'mcp'
+	| 'oauth-server'
+	| 'dynamic-credentials'
+	| 'log-streaming'
+	| 'ldap'
+	| 'redaction'
+	| 'source-control'
+	| 'promotions'
+	| 'token-exchange'
+	| 'policy-infrastructure'
+	| 'workflow-reviews'
+	| 'type-availability-policies';
 
 export interface SetupProps {
 	endpointGroups?: EndpointGroup[];
 	enabledFeatures?: BooleanLicenseFeature[];
 	quotas?: Partial<{ [K in NumericLicenseFeature]: number }>;
+	modules?: ModuleName[];
+	/** Override the default test timeout (ms) for the shared `beforeAll` setup hook. */
+	setupTimeout?: number;
 }
 
 export type SuperAgentTest = TestAgent;
@@ -60,17 +96,11 @@ export interface TestServer {
 	publicApiAgentFor: (user: User) => TestAgent;
 	publicApiAgentWithApiKey: (apiKey: string) => TestAgent;
 	publicApiAgentWithoutApiKey: () => TestAgent;
+	publicApiAgentWithCookie: (user: User) => TestAgent;
 	authlessAgent: TestAgent;
 	restlessAgent: TestAgent;
 	license: LicenseMocker;
 }
-
-export type CredentialPayload = {
-	name: string;
-	type: string;
-	data: ICredentialDataDecryptedObject;
-	isManaged?: boolean;
-};
 
 export type SaveCredentialFunction = (
 	credentialPayload: CredentialPayload,

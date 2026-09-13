@@ -4,7 +4,9 @@ export type Message = {
 	labelIds: string[];
 	snippet: string;
 	historyId: string;
-	internalDate: string;
+	date?: string;
+	headers?: Record<string, string>;
+	internalDate?: string;
 	sizeEstimate: number;
 	raw: string;
 	payload: MessagePart;
@@ -12,8 +14,13 @@ export type Message = {
 
 export type ListMessage = Pick<Message, 'id' | 'threadId'>;
 
+export type MessageBookkeeping = {
+	id: string;
+	date: number;
+};
+
 export type MessageListResponse = {
-	messages: ListMessage[];
+	messages?: ListMessage[];
 	nextPageToken?: string;
 	resultSizeEstimate: number;
 };
@@ -36,4 +43,65 @@ type MessagePartBody = {
 	attachmentId: string;
 	size: number;
 	data: string;
+};
+
+export type Label = {
+	id: string;
+	name: string;
+	messageListVisibility?: 'hide';
+	labelListVisibility?: 'labelHide';
+	type?: 'system';
+};
+
+export type GmailWorkflowStaticData = {
+	lastTimeChecked?: number;
+	possibleDuplicates?: string[];
+	/** v1.4+: Message IDs remaining from a previous poll that exceeded maxResults */
+	pendingMessageIds?: string[];
+	/** v1.4+: IDs whose fetch failed, with how many attempts each has had so far */
+	failedFetches?: Array<[string, number]>;
+	/**
+	 * Consecutive polls whose scan stopped short and reached nothing new. Any
+	 * fetched message clears it, delivered or filtered out. A scan that exhausted
+	 * the page token clears it too. Only v1.4+ reads it.
+	 */
+	noProgressTicks?: number;
+};
+export type GmailWorkflowStaticDataDictionary = Record<string, GmailWorkflowStaticData>;
+
+export type GmailTriggerOptions = Partial<{
+	dataPropertyAttachmentsPrefixName: string;
+	downloadAttachments: boolean;
+}>;
+
+export type GmailTriggerFilters = Partial<{
+	sender: string;
+	q: string;
+	includeSpamTrash: boolean;
+	includeDrafts: boolean;
+	readStatus: 'read' | 'unread' | 'both';
+	labelIds: string[];
+	receivedAfter: number;
+}>;
+
+export type GmailMessage = {
+	id: string;
+	threadId: string;
+	labelIds: string[];
+	snippet: string;
+	historyId: string;
+	internalDate?: string;
+	headers?: Record<string, string>;
+	sizeEstimate: number;
+	raw: string;
+	payload: MessagePart;
+};
+
+export type GmailMessageMetadata = Pick<GmailMessage, 'id' | 'threadId' | 'labelIds' | 'payload'>;
+
+export type GmailUserProfile = {
+	emailAddress: string;
+	messagesTotal: number;
+	threadsTotal: number;
+	historyId: string;
 };

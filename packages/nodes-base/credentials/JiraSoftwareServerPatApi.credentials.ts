@@ -40,8 +40,8 @@ export class JiraSoftwareServerPatApi implements ICredentialType {
 
 	test: ICredentialTestRequest = {
 		request: {
-			baseURL: '={{$credentials?.domain}}',
-			url: '/rest/api/2/project',
+			baseURL: '={{$credentials.domain?.replace(/\\/+$/, "")}}',
+			url: '/rest/api/2/myself',
 		},
 	};
 }

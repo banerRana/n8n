@@ -5,7 +5,7 @@ import type {
 	INodeType,
 	INodeTypeDescription,
 } from 'n8n-workflow';
-import { NodeConnectionType } from 'n8n-workflow';
+import { NodeConnectionTypes } from 'n8n-workflow';
 
 import { gotifyApiRequest, gotifyApiRequestAllItems } from './GenericFunctions';
 
@@ -22,8 +22,9 @@ export class Gotify implements INodeType {
 		defaults: {
 			name: 'Gotify',
 		},
-		inputs: [NodeConnectionType.Main],
-		outputs: [NodeConnectionType.Main],
+		usableAsTool: true,
+		inputs: [NodeConnectionTypes.Main],
+		outputs: [NodeConnectionTypes.Main],
 		credentials: [
 			{
 				name: 'gotifyApi',
@@ -146,6 +147,27 @@ export class Gotify implements INodeType {
 							},
 						],
 					},
+					{
+						displayName: 'Click URL',
+						name: 'clickUrl',
+						type: 'string',
+						default: '',
+						description: 'Opens this URL when the notification is clicked',
+					},
+					{
+						displayName: 'Big Image URL',
+						name: 'bigImageUrl',
+						type: 'string',
+						default: '',
+						description: 'Shows a big image in the notification',
+					},
+					{
+						displayName: 'Intent URL',
+						name: 'intentUrl',
+						type: 'string',
+						default: '',
+						description: 'Opens an intent URL after the notification is delivered (Android only)',
+					},
 				],
 			},
 			{
@@ -215,12 +237,38 @@ export class Gotify implements INodeType {
 							message,
 						};
 
+						// Build extras object conditionally
+						const extras: IDataObject = {};
+
 						if (options.contentType) {
-							body.extras = {
-								'client::display': {
-									contentType: options.contentType,
+							extras['client::display'] = {
+								contentType: options.contentType,
+							};
+						}
+
+						const clientNotification: IDataObject = {};
+						if (options.clickUrl) {
+							clientNotification.click = {
+								url: options.clickUrl,
+							};
+						}
+						if (options.bigImageUrl) {
+							clientNotification.bigImageUrl = options.bigImageUrl;
+						}
+						if (Object.keys(clientNotification).length > 0) {
+							extras['client::notification'] = clientNotification;
+						}
+
+						if (options.intentUrl) {
+							extras['android::action'] = {
+								onReceive: {
+									intentUrl: options.intentUrl,
 								},
 							};
+						}
+
+						if (Object.keys(extras).length > 0) {
+							body.extras = extras;
 						}
 
 						Object.assign(body, additionalFields);

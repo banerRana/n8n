@@ -1,4 +1,34 @@
-import type { INodeProperties } from 'n8n-workflow';
+import type { INodeProperties, INodePropertyOptions } from 'n8n-workflow';
+
+import { optimizeResponseProperties } from '../shared/optimizeResponse';
+
+const webdavMethodOptions: INodePropertyOptions[] = [
+	'COPY',
+	'MKCOL',
+	'MOVE',
+	'PROPFIND',
+	'REPORT',
+].flatMap((method) => [
+	{
+		name: method,
+		value: method,
+		displayOptions: {
+			show: {
+				'options.webdavMethods': [true],
+			},
+		},
+	},
+	{
+		name: method,
+		value: method,
+		displayOptions: {
+			hide: {
+				method: [{ _cnd: { not: method } }],
+				'options.webdavMethods': [true],
+			},
+		},
+	},
+]);
 
 export const mainProperties: INodeProperties[] = [
 	{
@@ -40,6 +70,7 @@ export const mainProperties: INodeProperties[] = [
 				name: 'PUT',
 				value: 'PUT',
 			},
+			...webdavMethodOptions,
 		],
 		default: 'GET',
 		description: 'The request method to use',
@@ -76,6 +107,10 @@ export const mainProperties: INodeProperties[] = [
 			},
 		],
 		default: 'none',
+		builderHint: {
+			propertyHint:
+				'Prefer "predefinedCredentialType" whenever n8n already ships a credential for the target service: it is less setup for the user and authenticates the request the same way. Look it up by the request URL rather than guessing. Use "genericCredentialType" only for services with no dedicated n8n credential. Keep "none" for unauthenticated requests and for inbound triggers.',
+		},
 	},
 	{
 		displayName: 'Credential Type',
@@ -114,6 +149,14 @@ export const mainProperties: INodeProperties[] = [
 			show: {
 				authentication: ['genericCredentialType'],
 			},
+		},
+		builderHint: {
+			propertyHint: `For a NEW credential default to httpTemplatedCustomAuth whenever the auth fits header/query/body values — API keys and bearer tokens alike ("Authorization: Bearer <token>" becomes the template {"headers":{"Authorization":"Bearer {{api_key}}"}}). Setup rejects new plain generic credentials on this node UNLESS the user explicitly asked for that type — an explicit user choice always wins, don't argue with it.
+Pick a plain generic type when reusing an existing credential of that type, or when the user explicitly asks for one, matching how the API authenticates:
+- "Authorization: Bearer <token>" → httpBearerAuth.
+- Custom header like X-API-Key, apikey, X-Auth-Token, or non-Bearer Authorization schemes → httpHeaderAuth.
+- API key in the query string (?api_key=...) → httpQueryAuth.
+For what a template cannot express, use the matching type for new and existing credentials alike: username + password → httpBasicAuth, digest → httpDigestAuth, OAuth → oAuth2Api/oAuth1Api.`,
 		},
 	},
 	{
@@ -187,8 +230,11 @@ export const mainProperties: INodeProperties[] = [
 		},
 		typeOptions: {
 			multipleValues: true,
+			fixedCollection: {
+				itemTitle: '={{ $collection.item.value.name }}',
+			},
 		},
-		placeholder: 'Add Parameter',
+		placeholder: 'Add Query Parameter',
 		default: {
 			parameters: [
 				{
@@ -200,7 +246,11 @@ export const mainProperties: INodeProperties[] = [
 		options: [
 			{
 				name: 'parameters',
-				displayName: 'Parameter',
+				displayName: 'Query Parameter',
+				builderHint: {
+					propertyHint: `NEVER put static authentication values (API keys, tokens, PATs) in queryParameters. It's insecure to store credentials directly in parameters. Instead set authentication to "genericCredentialType", genericAuthType to "httpQueryAuth", and add credentials: { httpQueryAuth:
+ newCredential("Name") }. Only use queryParameters for non-auth values. Dynamic values from previous nodes via expr() are acceptable.`,
+				},
 				values: [
 					{
 						displayName: 'Name',
@@ -260,7 +310,7 @@ export const mainProperties: INodeProperties[] = [
 		default: 'keypair',
 	},
 	{
-		displayName: 'Header Parameters',
+		displayName: 'Headers',
 		name: 'headerParameters',
 		type: 'fixedCollection',
 		displayOptions: {
@@ -271,8 +321,11 @@ export const mainProperties: INodeProperties[] = [
 		},
 		typeOptions: {
 			multipleValues: true,
+			fixedCollection: {
+				itemTitle: '={{ $collection.item.value.name }}',
+			},
 		},
-		placeholder: 'Add Parameter',
+		placeholder: 'Add Header',
 		default: {
 			parameters: [
 				{
@@ -284,7 +337,11 @@ export const mainProperties: INodeProperties[] = [
 		options: [
 			{
 				name: 'parameters',
-				displayName: 'Parameter',
+				displayName: 'Header',
+				builderHint: {
+					propertyHint: `NEVER put static authentication values (API keys, tokens, PATs) in headerParameters. It's insecure to store credentials directly in parameters. Instead set authentication to "genericCredentialType", genericAuthType to "httpHeaderAuth", and add credentials: { httpHeaderAuth:
+ newCredential("Name") }. Only use headerParameters for non-auth headers like Content-Type or Accept. Dynamic values from previous nodes via expr() are acceptable.`,
+				},
 				values: [
 					{
 						displayName: 'Name',
@@ -333,7 +390,7 @@ export const mainProperties: INodeProperties[] = [
 		},
 		options: [
 			{
-				name: 'Form Urlencoded',
+				name: 'Form URL Encoded',
 				value: 'form-urlencoded',
 			},
 			{
@@ -386,6 +443,10 @@ export const mainProperties: INodeProperties[] = [
 		displayName: 'Body Parameters',
 		name: 'bodyParameters',
 		type: 'fixedCollection',
+		builderHint: {
+			propertyHint: `NEVER put static authentication values (API keys, tokens, PATs) in bodyParameters. It's insecure to store credentials directly in parameters. Instead set authentication to "genericCredentialType", genericAuthType to "customAuth", and add credentials: { customAuth:
+ newCredential("Name") }. Only use bodyParameters for non-auth values. Dynamic values from previous nodes via expr() are acceptable.`,
+		},
 		displayOptions: {
 			show: {
 				sendBody: [true],
@@ -395,8 +456,11 @@ export const mainProperties: INodeProperties[] = [
 		},
 		typeOptions: {
 			multipleValues: true,
+			fixedCollection: {
+				itemTitle: '={{ $collection.item.value.name }}',
+			},
 		},
-		placeholder: 'Add Parameter',
+		placeholder: 'Add Body Field',
 		default: {
 			parameters: [
 				{
@@ -408,7 +472,7 @@ export const mainProperties: INodeProperties[] = [
 		options: [
 			{
 				name: 'parameters',
-				displayName: 'Parameter',
+				displayName: 'Body Field',
 				values: [
 					{
 						displayName: 'Name',
@@ -433,6 +497,10 @@ export const mainProperties: INodeProperties[] = [
 		displayName: 'JSON',
 		name: 'jsonBody',
 		type: 'json',
+		builderHint: {
+			propertyHint: `NEVER put static authentication values (API keys, tokens, PATs) in bodyParameters. It's insecure to store credentials directly in parameters. Instead set authentication to "genericCredentialType", genericAuthType to "customAuth", and add credentials: { customAuth:
+ newCredential("Name") }. Only use bodyParameters for non-auth values. Dynamic values from previous nodes via expr() are acceptable.`,
+		},
 		displayOptions: {
 			show: {
 				sendBody: [true],
@@ -443,7 +511,7 @@ export const mainProperties: INodeProperties[] = [
 		default: '',
 	},
 	{
-		displayName: 'Body Parameters',
+		displayName: 'Body',
 		name: 'bodyParameters',
 		type: 'fixedCollection',
 		displayOptions: {
@@ -454,8 +522,11 @@ export const mainProperties: INodeProperties[] = [
 		},
 		typeOptions: {
 			multipleValues: true,
+			fixedCollection: {
+				itemTitle: '={{ $collection.item.value.name }}',
+			},
 		},
-		placeholder: 'Add Parameter',
+		placeholder: 'Add Body Field',
 		default: {
 			parameters: [
 				{
@@ -467,10 +538,10 @@ export const mainProperties: INodeProperties[] = [
 		options: [
 			{
 				name: 'parameters',
-				displayName: 'Parameter',
+				displayName: 'Body Field',
 				values: [
 					{
-						displayName: 'Parameter Type',
+						displayName: 'Type',
 						name: 'parameterType',
 						type: 'options',
 						options: [
@@ -546,7 +617,7 @@ export const mainProperties: INodeProperties[] = [
 		default: 'keypair',
 	},
 	{
-		displayName: 'Body Parameters',
+		displayName: 'Body Fields',
 		name: 'bodyParameters',
 		type: 'fixedCollection',
 		displayOptions: {
@@ -558,8 +629,11 @@ export const mainProperties: INodeProperties[] = [
 		},
 		typeOptions: {
 			multipleValues: true,
+			fixedCollection: {
+				itemTitle: '={{ $collection.item.value.name }}',
+			},
 		},
-		placeholder: 'Add Parameter',
+		placeholder: 'Add Field',
 		default: {
 			parameters: [
 				{
@@ -571,7 +645,7 @@ export const mainProperties: INodeProperties[] = [
 		options: [
 			{
 				name: 'parameters',
-				displayName: 'Parameter',
+				displayName: 'Field',
 				values: [
 					{
 						displayName: 'Name',
@@ -947,7 +1021,7 @@ export const mainProperties: INodeProperties[] = [
 							},
 							{
 								displayName:
-									'Use the $response variables to access the data of the previous response. Refer to the <a href="https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.httprequest/#pagination/?utm_source=n8n_app&utm_medium=node_settings_modal-credential_link&utm_campaign=n8n-nodes-base.httpRequest" target="_blank">docs</a> for more info about pagination/',
+									'Use the $response variables to access the data of the previous response. Refer to the <a href="https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.httprequest/#pagination/?utm_source=n8n_app&utm_medium=node_settings_modal-credential_link&utm_campaign=n8n-nodes-base.httprequest" target="_blank">docs</a> for more info about pagination/',
 								name: 'webhookNotice',
 								displayOptions: {
 									hide: {
@@ -982,6 +1056,10 @@ export const mainProperties: INodeProperties[] = [
 								typeOptions: {
 									multipleValues: true,
 									noExpression: true,
+									fixedCollection: {
+										itemTitle:
+											'={{ (() => { const name = $collection.item.value.name; if (!name) return ""; const typeName = $collection.item.properties.find(p => p.name === "type").options.find(o => o.value === $collection.item.value.type).name; return typeName + ": " + name; })() }}',
+									},
 								},
 								placeholder: 'Add Parameter',
 								default: {
@@ -1165,8 +1243,31 @@ export const mainProperties: INodeProperties[] = [
 				description:
 					'Time in ms to wait for the server to send response headers (and start the response body) before aborting the request',
 			},
+			{
+				displayName: 'Send Credentials on Cross-Origin Redirect',
+				name: 'sendCredentialsOnCrossOriginRedirect',
+				type: 'boolean',
+				default: false,
+				description:
+					'Whether to send credentials, like the "Authorization" header, on redirects to a different origin',
+			},
+			{
+				displayName: 'Enable WebDAV Methods',
+				name: 'webdavMethods',
+				type: 'boolean',
+				default: false,
+				description:
+					'Whether to add the WebDAV request methods PROPFIND, MKCOL, MOVE, COPY and REPORT to the Method list',
+			},
 		],
 	},
+	...optimizeResponseProperties.map((prop) => ({
+		...prop,
+		displayOptions: {
+			...prop.displayOptions,
+			show: { ...prop.displayOptions?.show, '@tool': [true] },
+		},
+	})),
 	{
 		displayName:
 			"You can view the raw requests this node makes in your browser's developer console",

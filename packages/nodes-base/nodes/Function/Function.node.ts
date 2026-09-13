@@ -1,5 +1,5 @@
-import type { NodeVMOptions } from '@n8n/vm2';
-import { NodeVM } from '@n8n/vm2';
+import type { NodeVMOptions } from 'vm2';
+import { NodeVM } from 'vm2';
 import type {
 	IExecuteFunctions,
 	IBinaryKeyData,
@@ -8,7 +8,12 @@ import type {
 	INodeType,
 	INodeTypeDescription,
 } from 'n8n-workflow';
-import { NodeConnectionType, deepCopy, NodeOperationError } from 'n8n-workflow';
+import {
+	NodeConnectionTypes,
+	deepCopy,
+	NodeOperationError,
+	CONSOLE_OUTPUT_REDACTED_MESSAGE,
+} from 'n8n-workflow';
 
 import { vmResolver } from '../Code/JavaScriptSandbox';
 
@@ -26,8 +31,8 @@ export class Function implements INodeType {
 			name: 'Function',
 			color: '#FF9922',
 		},
-		inputs: [NodeConnectionType.Main],
-		outputs: [NodeConnectionType.Main],
+		inputs: [NodeConnectionTypes.Main],
+		outputs: [NodeConnectionTypes.Main],
 		properties: [
 			{
 				displayName: 'A newer version of this node type is available, called the ‘Code’ node',
@@ -149,8 +154,12 @@ return items;`,
 
 		const mode = this.getMode();
 
+		// Keep vm2 'inherit' (raw stdout) when the run is not redacted so output
+		// is byte-identical; redirect only when the resolved policy redacts it.
+		const redactConsole = mode !== 'manual' && this.isConsoleOutputRedacted();
+
 		const options: NodeVMOptions = {
-			console: mode === 'manual' ? 'redirect' : 'inherit',
+			console: mode === 'manual' || redactConsole ? 'redirect' : 'inherit',
 			sandbox,
 			require: vmResolver,
 		};
@@ -159,6 +168,8 @@ return items;`,
 
 		if (mode === 'manual') {
 			vm.on('console.log', this.sendMessageToUI.bind(this));
+		} else if (redactConsole) {
+			vm.on('console.log', () => console.log(CONSOLE_OUTPUT_REDACTED_MESSAGE));
 		}
 
 		// Get the code to execute

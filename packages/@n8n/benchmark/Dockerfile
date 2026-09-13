@@ -1,12 +1,17 @@
 # syntax=docker/dockerfile:1
-FROM node:20.16.0 AS base
+FROM node:24.18.1 AS base
 
 # Install required dependencies
 RUN apt-get update && apt-get install -y gnupg2 curl
 
 # Add k6 GPG key and repository
+# The pinned checksum makes an upstream key rotation fail the build instead of being silently trusted
+ARG K6_KEY_SHA256=4c37d3903756418615dd5bb72a7ed49485fde47a9a5239c0bd4726ea15584727
 RUN mkdir -p /etc/apt/keyrings && \
-	curl -sS https://dl.k6.io/key.gpg | gpg --dearmor --yes -o /etc/apt/keyrings/k6.gpg && \
+	curl -sS https://dl.k6.io/key.gpg -o /tmp/k6-key.gpg && \
+	echo "${K6_KEY_SHA256}  /tmp/k6-key.gpg" | sha256sum -c - && \
+	gpg --dearmor --yes -o /etc/apt/keyrings/k6.gpg /tmp/k6-key.gpg && \
+	rm /tmp/k6-key.gpg && \
 	chmod a+x /etc/apt/keyrings/k6.gpg && \
 	echo "deb [signed-by=/etc/apt/keyrings/k6.gpg] https://dl.k6.io/deb stable main" | tee /etc/apt/sources.list.d/k6.list
 
@@ -18,7 +23,7 @@ RUN apt-get update && \
 
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
-RUN corepack enable
+RUN npm install -g corepack@0.33 && corepack enable
 
 #
 # Builder
@@ -37,9 +42,9 @@ ENV DOCKER_BUILD=true
 RUN pnpm install --frozen-lockfile
 
 # TS config files
-COPY --chown=node:node ./tsconfig.json /app/tsconfig.json
-COPY --chown=node:node ./tsconfig.build.json /app/tsconfig.build.json
-COPY --chown=node:node ./tsconfig.backend.json /app/tsconfig.backend.json
+COPY --chown=node:node ./packages/@n8n/typescript-config/tsconfig.common.json /app/packages/@n8n/typescript-config/tsconfig.common.json
+COPY --chown=node:node ./packages/@n8n/typescript-config/tsconfig.build.json /app/packages/@n8n/typescript-config/tsconfig.build.json
+COPY --chown=node:node ./packages/@n8n/typescript-config/tsconfig.backend.json /app/packages/@n8n/typescript-config/tsconfig.backend.json
 COPY --chown=node:node ./packages/@n8n/benchmark/tsconfig.json /app/packages/@n8n/benchmark/tsconfig.json
 COPY --chown=node:node ./packages/@n8n/benchmark/tsconfig.build.json /app/packages/@n8n/benchmark/tsconfig.build.json
 

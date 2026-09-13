@@ -1,6 +1,11 @@
-import { isObjectLiteral } from 'n8n-core';
+import { isObjectLiteral } from '@n8n/backend-common';
 import { NodeOperationError } from 'n8n-workflow';
 import type { Workflow } from 'n8n-workflow';
+
+/**
+ * Optional properties that should be propagated from an error object to the new Error instance.
+ */
+const errorProperties = ['description', 'stack', 'executionId', 'workflowId'];
 
 export function objectToError(errorObject: unknown, workflow: Workflow): Error {
 	// TODO: Expand with other error types
@@ -22,11 +27,7 @@ export function objectToError(errorObject: unknown, workflow: Workflow): Error {
 			const node = workflow.getNode(errorObject.node.name);
 
 			if (node) {
-				error = new NodeOperationError(
-					node,
-					errorObject as unknown as Error,
-					errorObject as object,
-				);
+				error = new NodeOperationError(node, errorObject as unknown as Error, errorObject);
 			}
 		}
 
@@ -34,15 +35,11 @@ export function objectToError(errorObject: unknown, workflow: Workflow): Error {
 			error = new Error(errorObject.message);
 		}
 
-		if ('description' in errorObject) {
-			// @ts-expect-error Error descriptions are surfaced by the UI but
-			// not all backend errors account for this property yet.
-			error.description = errorObject.description as string;
-		}
-
-		if ('stack' in errorObject) {
-			// If there's a 'stack' property, set it on the new Error instance.
-			error.stack = errorObject.stack as string;
+		for (const field of errorProperties) {
+			if (field in errorObject && errorObject[field]) {
+				// Not all errors contain these properties
+				(error as unknown as Record<string, unknown>)[field] = errorObject[field];
+			}
 		}
 
 		return error;

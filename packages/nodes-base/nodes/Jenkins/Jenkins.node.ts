@@ -11,9 +11,11 @@ import type {
 	INodeTypeDescription,
 	JsonObject,
 } from 'n8n-workflow';
-import { NodeApiError, NodeConnectionType } from 'n8n-workflow';
+import { NodeApiError, NodeConnectionTypes } from 'n8n-workflow';
 
-import { jenkinsApiRequest, tolerateTrailingSlash } from './GenericFunctions';
+import { removeTrailingSlash } from '@utils/utilities';
+
+import { jenkinsApiRequest } from './GenericFunctions';
 
 export type JenkinsApiCredentials = {
 	username: string;
@@ -33,8 +35,9 @@ export class Jenkins implements INodeType {
 		defaults: {
 			name: 'Jenkins',
 		},
-		inputs: [NodeConnectionType.Main],
-		outputs: [NodeConnectionType.Main],
+		usableAsTool: true,
+		inputs: [NodeConnectionTypes.Main],
+		outputs: [NodeConnectionTypes.Main],
 		credentials: [
 			{
 				name: 'jenkinsApi',
@@ -396,7 +399,7 @@ export class Jenkins implements INodeType {
 			): Promise<INodeCredentialTestResult> {
 				const { baseUrl, username, apiKey } = credential.data as JenkinsApiCredentials;
 
-				const url = tolerateTrailingSlash(baseUrl);
+				const url = removeTrailingSlash(baseUrl);
 				const endpoint = '/api/json';
 
 				const options = {
@@ -451,15 +454,25 @@ export class Jenkins implements INodeType {
 			async getJobParameters(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
 				const job = this.getCurrentNodeParameter('job') as string;
 				const returnData: INodePropertyOptions[] = [];
-				const endpoint = `/job/${job}/api/json?tree=actions[parameterDefinitions[*]]`;
-				const { actions } = await jenkinsApiRequest.call(this, 'GET', endpoint);
-				for (const { _class, parameterDefinitions } of actions) {
-					if (_class?.includes('ParametersDefinitionProperty')) {
-						for (const { name, type } of parameterDefinitions) {
+				const endpoint = `/job/${job}/api/json?tree=actions[parameterDefinitions[*]],property[parameterDefinitions[*]]`;
+				const result = await jenkinsApiRequest.call(this, 'GET', endpoint);
+				const allParameters = [...(result.actions ?? []), ...(result.property ?? [])];
+				const seenParameterNames = new Set<string>();
+				for (const { _class, parameterDefinitions } of allParameters) {
+					if (
+						!_class?.includes('ParametersDefinitionProperty') ||
+						!Array.isArray(parameterDefinitions)
+					) {
+						continue;
+					}
+
+					for (const { name, type } of parameterDefinitions) {
+						if (!seenParameterNames.has(name)) {
 							returnData.push({
 								name: `${name} - (${type})`,
 								value: name,
 							});
+							seenParameterNames.add(name);
 						}
 					}
 				}

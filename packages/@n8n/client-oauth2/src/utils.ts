@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import type { ClientOAuth2Options, ClientOAuth2RequestObject } from './ClientOAuth2';
+import type { ClientOAuth2Options, ClientOAuth2RequestObject } from './client-oauth2';
 import { ERROR_RESPONSES } from './constants';
 
 /**
@@ -43,6 +43,17 @@ export function getAuthError(body: {
 	}
 
 	return undefined;
+}
+
+/**
+ * Parse a string as a URL, returning `null` when it is not parseable.
+ */
+export function tryParseUrl(url: string): URL | null {
+	try {
+		return new URL(url);
+	} catch {
+		return null;
+	}
 }
 
 /**
